@@ -52,7 +52,7 @@ def create_premiacaoReconquista():
     try:
         # Verificar duplicidade
         existing_premiacaoReconquista = PremiacaoReconquista.query.filter(
-            (PremiacaoReconquista.descricao == descricao) | (PremiacaoReconquista.time == time)
+            (PremiacaoReconquista.descricao == descricao) & (PremiacaoReconquista.time == time)
         ).first()
 
         if existing_premiacaoReconquista:

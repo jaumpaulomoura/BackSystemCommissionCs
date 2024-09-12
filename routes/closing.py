@@ -119,9 +119,17 @@ def get_closing_grouped():
     # Return the grouped results as a JSON response
     return jsonify(results) if results else jsonify([])
 
+# Define o fuso horário local
+local_tz = pytz.timezone('America/Sao_Paulo')
 
-
-
+def ajustar_para_fuso_horario_local(data_utc):
+    """
+    Converte a data do UTC para o fuso horário de São Paulo.
+    """
+    if data_utc is None:
+        return None
+    # Converte do UTC para o fuso horário local
+    return data_utc.astimezone(local_tz)
 @closing_bp.route('/closingOrder', methods=['GET'], strict_slashes=False)
 def get_orders():
     start_time = time.time()
@@ -162,15 +170,12 @@ def get_orders():
         grouped_data = (
             query.with_entities(
                 VwcsEcomPedidosJp.cupom_vendedora,
-                func.extract('month', VwcsEcomPedidosJp.data_submissao).label('mes'),
-                func.extract('year', VwcsEcomPedidosJp.data_submissao).label('ano'),
+                func.min(VwcsEcomPedidosJp.data_submissao).label('min_date'),
                 func.sum(cast(func.replace(VwcsEcomPedidosJp.valor_pago, ',', '.'), Numeric)).label('total_valor_pago'),
                 func.sum(cast(func.replace(VwcsEcomPedidosJp.valor_frete, ',', '.'), Numeric)).label('total_valor_frete')
             )
             .group_by(
-                VwcsEcomPedidosJp.cupom_vendedora,
-                func.extract('month', VwcsEcomPedidosJp.data_submissao),
-                func.extract('year', VwcsEcomPedidosJp.data_submissao)
+                VwcsEcomPedidosJp.cupom_vendedora
             )
         ).all()
     except Exception as e:
@@ -178,26 +183,35 @@ def get_orders():
 
     results = []
     for data in grouped_data:
+
         total_comissao = (
             (float(data.total_valor_pago) if data.total_valor_pago is not None else 0.0) -
             (float(data.total_valor_frete) if data.total_valor_frete is not None else 0.0)
         )
 
         # Garantir que mes e ano sejam inteiros e formatar mes_ano corretamente
-        mes = int(data.mes) if data.mes is not None else 0
-        ano = int(data.ano) if data.ano is not None else 0
+        # mes = int(data.min_date) if data.min_date is not None else 0
+        # ano = int(data.min_date) if data.min_date is not None else 0
+        # Extrai mês e ano da data ajustada
+        # mes = data_inicio_mes_local.month
+        # ano = data_inicio_mes_local.year
+         # Garantir que min_date seja um objeto datetime
+        if data.min_date is not None:
+            mes = data.min_date.month
+            ano = data.min_date.year
+        else:
+            mes = 0
+            ano = 0
         mes_formatado = f"{mes:02d}"
         mes_ano = f"{mes_formatado}-{ano}"
+        print(mes_ano)
 
-        # Adicionar prints para depuração
-        print(f"total_comissao: {total_comissao}")
-        print(f"mes_ano: {mes_ano}")
 
         # Inicializa as variáveis com valores padrão
         selected_meta = 'Não atingiu a meta'
         porcentagem = 0
         valor_meta = 0
-        premio_valor = 0
+        premiacao_meta = 0 
 
         # Busca a meta correspondente ordenada por valor de forma decrescente
         metas = db.session.query(Meta).filter(
@@ -205,8 +219,7 @@ def get_orders():
             Meta.mes_ano == mes_ano
         ).order_by(Meta.valor.desc()).all()
 
-        # Adicionar print para ver as metas retornadas
-        print(f"Metas retornadas: {[meta.to_dict() for meta in metas]}")
+        
 
         # Verifica qual meta se aplica
         for meta in metas:
