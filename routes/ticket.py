@@ -1,15 +1,20 @@
 from cgitb import text
 from flask import Blueprint, jsonify, request, abort
-from models import Colaborador, Ticket
-from database import db
+# from models import Colaborador, Ticket
+# from database import db
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
+from models.colaborador import Colaborador
+from flask_jwt_extended import jwt_required
+from models.ticket import Ticket
 
+from database import db
 
 ticket_bp = Blueprint('ticket_bp', __name__)
 
 @ticket_bp.route('/ticket', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def consultar_ticket():
     try:
         cupom_vendedora = request.args.get('cupomvendedora')
@@ -37,6 +42,7 @@ def consultar_ticket():
 
 
 @ticket_bp.route('/ticket', methods=['POST'])
+@jwt_required()
 def create_ticket():
     data = request.get_json()
 
@@ -66,6 +72,7 @@ def create_ticket():
         return jsonify({'error': 'Erro ao criar ticket'}), 500
 
 @ticket_bp.route('/ticket', methods=['DELETE'])
+@jwt_required()
 def delete_ticket():
     ticket_id = request.args.get('id')
 
@@ -87,6 +94,7 @@ def delete_ticket():
         return jsonify({'error': 'Erro ao deletar ticket'}), 500
 
 @ticket_bp.route('/ticket/<int:id>', methods=['PUT'])
+@jwt_required()
 def update_ticket(id):
     data = request.get_json()
 
@@ -130,6 +138,7 @@ def update_ticket(id):
 
 
 @ticket_bp.route('/ticket/update-cupom', methods=['PUT'])
+@jwt_required()
 def update_coupon():
     data = request.get_json()
 
@@ -156,6 +165,7 @@ def update_coupon():
 
 
 @ticket_bp.route('/ticket/update-status', methods=['PUT'])
+@jwt_required()
 def update_status():
     data = request.get_json()
 

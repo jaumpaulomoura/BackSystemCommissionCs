@@ -2,7 +2,16 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 import pytz
 from sqlalchemy import Numeric, cast, func
-from models import Colaborador, Meta, PremiacaoMeta, VwcsEcomPedidosJp, db, Closing
+from flask_jwt_extended import jwt_required
+# from models import Colaborador, Meta, PremiacaoMeta, VwcsEcomPedidosJp, db, Closing
+
+from models.colaborador import Colaborador
+from models.meta import Meta
+from models.premiacaoMeta import PremiacaoMeta
+from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
+from models.closing import Closing
+from database import db
+
 import time
 
 closing_bp = Blueprint('closing_bp', __name__)
@@ -10,6 +19,7 @@ closing_bp = Blueprint('closing_bp', __name__)
 
 
 @closing_bp.route('/closing', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def get_closing():
     start_time = time.time()
 
@@ -63,6 +73,7 @@ def get_closing():
 
 
 @closing_bp.route('/closingGroup', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def get_closing_grouped():
     start_time = time.time()
     time_param = request.args.get('time')
@@ -131,6 +142,7 @@ def ajustar_para_fuso_horario_local(data_utc):
     # Converte do UTC para o fuso horário local
     return data_utc.astimezone(local_tz)
 @closing_bp.route('/closingOrder', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def get_orders():
     start_time = time.time()
     start_date_str = request.args.get('startDate')
@@ -265,6 +277,7 @@ def get_orders():
     return jsonify(results)
 
 @closing_bp.route('/closing', methods=['POST'])
+@jwt_required()
 def create_colaborador():
     data_list = request.get_json()
     

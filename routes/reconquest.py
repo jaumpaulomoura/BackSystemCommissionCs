@@ -2,7 +2,17 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.dialects import postgresql
 import pytz
 from sqlalchemy import func, and_
-from models import Colaborador, SubmittedOrder, Ticket, db, VwcsEcomPedidosJp
+# from models import Colaborador, SubmittedOrder, Ticket, db, VwcsEcomPedidosJp
+from flask_jwt_extended import jwt_required
+from models.colaborador import Colaborador
+
+from models.submittedOrder import SubmittedOrder
+from models.ticket import Ticket
+
+from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
+from database import db
+
+
 from datetime import datetime, timedelta
 from sqlalchemy.orm import aliased
 
@@ -46,7 +56,7 @@ def adjust_for_timezone(date_str):
     """Subtrai 3 horas para corrigir a diferença de fuso horário."""
     if date_str:
         date = datetime.strptime(date_str, '%Y-%m-%d')
-        adjusted_date = date - timedelta(hours=3)
+        adjusted_date = date 
         return adjusted_date.strftime('%Y-%m-%d')
     return None
 def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_colaborador=None):
@@ -64,7 +74,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         formatted_end_date = end_date_local.astimezone(pytz.utc).strftime('%Y-%m-%d')
 
     filters = [VwcsEcomPedidosJp.status == 'APROVADO'
-            #    ,VwcsEcomPedidosJp.id_cliente == '780664026'
+            #    ,VwcsEcomPedidosJp.id_cliente == '73307380921'
                ]
     if formatted_start_date:
         filters.append(VwcsEcomPedidosJp.data_submissao >= formatted_start_date)
@@ -87,6 +97,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
 
     min_data_query = (
         db.session.query(
+            colaborador_alias.nome.label('nome'),
             VwcsEcomPedidosJp.cupom_vendedora,
             VwcsEcomPedidosJp.id_cliente,
             func.min(VwcsEcomPedidosJp.data_submissao).label('min_data')
@@ -101,7 +112,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         #     VwcsEcomPedidosJp.data_submissao <= '2024-09-01',
         #     colaborador_alias.cupom == 'COMPRECS65'
         # )   
-        .group_by(VwcsEcomPedidosJp.cupom_vendedora, VwcsEcomPedidosJp.id_cliente)
+        .group_by(VwcsEcomPedidosJp.cupom_vendedora, colaborador_alias.nome,VwcsEcomPedidosJp.id_cliente)
         .subquery()
     )
     # print("Consulta SQL Gerada para min_data_query:")
@@ -138,6 +149,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
 
     orders_query = (
         db.session.query(
+            min_data_query.c.nome,
             min_data_query.c.cupom_vendedora,
             min_data_query.c.id_cliente,
             min_data_query.c.min_data,
@@ -170,7 +182,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         current_date = parse_date(format_date_for_query(min_data)) or datetime.now()
         first_day_prev_month, last_day_prev_month = get_previous_month_range(current_date)
 
-
+        print(first_day_current_month,last_day_prev_month)
         min_data_prev_month = (
             db.session.query(func.min(VwcsEcomPedidosJp.data_submissao))
             # .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
@@ -203,12 +215,13 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
                 days_mes_anterior = (min_data_prev_month_date - last_order_prev_month_date).days
 
         status = ""
-        if days_mes_anterior is not None and days_mes_anterior > 90:
-            status = "Repagar"
-        elif days_difference is not None and days_difference > 90:
+        if days_difference is not None and days_difference > 90:
             status = "Reconquista"
         elif not status and format_date_for_query(last_order) is None :
-            status = "Reconquista"    
+            status = "Reconquista"  
+        elif days_mes_anterior is not None and days_mes_anterior > 90:
+            status = "Repagar"
+          
         elif min_data_prev_month is not None and last_order_prev_month is  None and  format_date_for_query(last_order) is not None:
             status = "Repagar"    
         if not status:
@@ -226,6 +239,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
             if ticket_query:
                 status = 'Reconquista'
         combined_results.append({
+            'nome': client_data.nome,
             'cupom_vendedora': client_data.cupom_vendedora, 
             'id_cliente': client_data.id_cliente,
             'last_order': adjust_for_timezone(format_date_for_query(last_order)),
@@ -243,6 +257,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
     return combined_results
 
 @reconquest_bp.route('/reconquest', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def reconquest():
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
@@ -273,6 +288,7 @@ def calculate_counts_by_cupom(orders):
     return results
 
 @reconquest_bp.route('/reconquestGroup', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def get_summary_summarys():
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')

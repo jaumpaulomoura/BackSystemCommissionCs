@@ -1,11 +1,18 @@
 from cgitb import text
 from flask import Blueprint, jsonify, request, abort
-from models import Colaborador, Meta
+from flask_jwt_extended import jwt_required
+from models.colaborador import Colaborador
+from models.meta import Meta
+from flask_jwt_extended import jwt_required
+
+
+
 from database import db
 
 meta_bp = Blueprint('meta_bp', __name__)
 
 @meta_bp.route('/meta', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def consultar_meta():
     try:
         cupom_vendedora = request.args.get('cupomvendedora')
@@ -45,6 +52,7 @@ def consultar_meta():
         return jsonify({'error': 'Erro na consulta SQL'}), 500
 
 @meta_bp.route('/meta', methods=['POST'])
+@jwt_required()
 def create_meta():
     data = request.get_json()
 
@@ -98,6 +106,7 @@ def create_meta():
 
 
 @meta_bp.route('/meta', methods=['DELETE'], strict_slashes=False)
+@jwt_required()
 def delete_meta():
     cupom = request.args.get('cupom')
     meta = request.args.get('meta')
@@ -129,6 +138,7 @@ def delete_meta():
         return jsonify({'error': 'Erro ao deletar meta'}), 500
 
 @meta_bp.route('/meta/<string:cupom>', methods=['PUT'])
+@jwt_required()
 def update_meta(cupom):
     data = request.get_json()
     novo_meta = data.get('meta')

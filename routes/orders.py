@@ -1,12 +1,17 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy import func
-from models import db, VwcsEcomPedidosJp, Colaborador
+# from models import db, VwcsEcomPedidosJp, Colaborador
+from flask_jwt_extended import jwt_required
+from models.colaborador import Colaborador
+from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
+from database import db
 from datetime import datetime
 import pytz
 
 orders_bp = Blueprint('orders_bp', __name__)
 
 @orders_bp.route('/orders', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def get_orders():
     # Obtém os parâmetros da query
     start_date_str = request.args.get('startDate')
@@ -69,6 +74,7 @@ def get_orders():
 
 
 @orders_bp.route('/ordersTeste', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def get_ordersTeste():
     # Obtém os parâmetros da query
     start_date_str = request.args.get('startDate')

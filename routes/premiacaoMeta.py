@@ -1,7 +1,12 @@
 from cgitb import text
 from flask import Blueprint, jsonify, request, abort
-from models import Colaborador, PremiacaoMeta
 from database import db
+from flask_jwt_extended import jwt_required
+from models.premiacaoMeta import PremiacaoMeta
+
+
+
+
 
 premiacaoMeta_bp = Blueprint('premiacaoMeta_bp', __name__)
          
@@ -11,6 +16,7 @@ premiacaoMeta_bp = Blueprint('premiacaoMeta_bp', __name__)
          
          
 @premiacaoMeta_bp.route('/premiacaoMeta', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def consultar_premiacaoMeta():
     try:
         # Obter o valor do parâmetro de consulta 'time', se presente
@@ -42,6 +48,7 @@ def consultar_premiacaoMeta():
 
 
 @premiacaoMeta_bp.route('/premiacaoMeta', methods=['POST'])
+@jwt_required()
 def create_premiacaoMeta():
     data = request.get_json()
     descricao = data.get('descricao')
@@ -70,6 +77,7 @@ def create_premiacaoMeta():
         return jsonify({'error': 'Erro ao criar premiacaoMeta'}), 500
 
 @premiacaoMeta_bp.route('/premiacaoMeta', methods=['DELETE'], strict_slashes=False)
+@jwt_required()
 def delete_premiacaoMeta():
     descricao = request.args.get('descricao')
     time = request.args.get('time')
@@ -95,6 +103,7 @@ def delete_premiacaoMeta():
         return jsonify({'error': 'Erro ao deletar premiacaoMeta'}), 500
 
 @premiacaoMeta_bp.route('/premiacaoMeta/<string:descricao>', methods=['PUT'])
+@jwt_required()
 def update_premiacaoMeta(descricao):
     data = request.get_json()
     time = data.get('time')

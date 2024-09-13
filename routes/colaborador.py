@@ -1,10 +1,15 @@
 from flask import Blueprint, jsonify, request, abort
-from models import Colaborador
+from models.colaborador import Colaborador
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import jwt_required
+
 from database import db
 
 colaborador_bp = Blueprint('colaborador_bp', __name__)
 
 @colaborador_bp.route('/colaborador', methods=['GET'], strict_slashes=False)
+@jwt_required()
 def consultar_colaborador():
     try:
         colaboradores = Colaborador.query.all()
@@ -17,32 +22,47 @@ def consultar_colaborador():
         return jsonify({'error': 'Erro na consulta SQL'}), 500
 
 @colaborador_bp.route('/colaborador', methods=['POST'])
+@jwt_required()
 def create_colaborador():
     data = request.get_json()
     cupom = data.get('cupom')
     nome = data.get('nome')
+    sobrenome = data.get('sobrenome')
     funcao = data.get('funcao')
     time = data.get('time')
+    email = data.get('email')
+    password = data.get('password')
+    
+    if not email or not password:
+        return jsonify({'message': 'Email and password are required'}), 400
 
+    # Verifica se o colaborador já existe
+    existing_colaborador = Colaborador.query.filter_by(email=email).first()
+    if existing_colaborador:
+        return jsonify({'message': 'User already exists'}), 409
+
+    # Cria um novo colaborador
+    hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+    new_colaborador = Colaborador(
+        cupom=cupom,
+        nome=nome,
+        sobrenome=sobrenome,
+        funcao=funcao,
+        time=time,
+        email=email,
+        password=hashed_password
+    )
+    
     try:
-        # Verificar duplicidade
-        existing_colaborador = Colaborador.query.filter(
-            (Colaborador.cupom == cupom) | (Colaborador.nome == nome)
-        ).first()
-
-        if existing_colaborador:
-            return jsonify({'error': 'Cupom ou nome já existe'}), 409
-
-        # Inserir novo colaborador
-        new_colaborador = Colaborador(cupom=cupom, nome=nome, funcao=funcao, time=time)
         db.session.add(new_colaborador)
         db.session.commit()
-        return jsonify({'message': 'Colaborador criado com sucesso'}), 201
+        return jsonify({'message': 'User created successfully'}), 201
     except Exception as e:
-        print(f"Erro ao criar colaborador: {e}")
-        return jsonify({'error': 'Erro ao criar colaborador'}), 500
+        db.session.rollback()
+        return jsonify({'message': 'An error occurred'}), 500
 
 @colaborador_bp.route('/colaborador', methods=['DELETE'], strict_slashes=False)
+@jwt_required()
 def delete_colaborador():
     cupom = request.args.get('cupom')
     nome = request.args.get('nome')
@@ -73,20 +93,27 @@ def delete_colaborador():
 
 
 @colaborador_bp.route('/colaborador/<string:cupom>', methods=['PUT'])
+@jwt_required()
 def update_colaborador(cupom):
     data = request.get_json()
     nome = data.get('nome')
+    sobrenome = data.get('sobrenome')
     funcao = data.get('funcao')
     time = data.get('time')
-
+    email = data.get('email')
+    password = data.get('password')
+    print(data)
     try:
         colaborador = Colaborador.query.filter_by(cupom=cupom).first()
         if colaborador is None:
             return jsonify({'error': 'Colaborador não encontrado'}), 404
 
         colaborador.nome = nome
+        colaborador.sobrenome = sobrenome
         colaborador.funcao = funcao
         colaborador.time = time
+        colaborador.email = email
+        colaborador.password = password
         db.session.commit()
         return jsonify({'message': 'Colaborador atualizado com sucesso'}), 200
     except Exception as e:

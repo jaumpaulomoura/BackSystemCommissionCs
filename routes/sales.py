@@ -5,13 +5,23 @@ from flask import Blueprint, jsonify, request
 import pytz
 from sqlalchemy import Numeric, String, and_, cast, func, or_
 from sqlalchemy.dialects import postgresql
-from models import VwcsEcomPedidosJp, db, Colaborador, SubmittedOrder
+# from models import VwcsEcomPedidosJp, db, Colaborador, SubmittedOrder
+from flask_jwt_extended import jwt_required
+from models.colaborador import Colaborador
+
+from models.submittedOrder import SubmittedOrder
+
+
+from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
+from database import db
+
 
 sales_bp = Blueprint('sales_bp', __name__)
 
     
     
 @sales_bp.route('/ordersByMonth', methods=['GET'])
+@jwt_required()
 def get_orders_by_month():
     cupom_vendedora = request.args.get('cupom_vendedora')
     team_name = request.args.get('team_name')
@@ -132,6 +142,7 @@ def get_orders_by_month():
 
  
 @sales_bp.route('/ordersByDay', methods=['GET'])
+@jwt_required()
 def get_orders_by_day():
     cupom_vendedora = request.args.get('cupom_vendedora')
     team_name = request.args.get('team_name')
