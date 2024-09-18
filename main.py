@@ -27,19 +27,19 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Inicialização do JWT
 jwt = JWTManager(app)
-print(f"SECRET_KEY: {app.config.get('SECRET_KEY')}")
-print(f"JWT_SECRET_KEY: {app.config.get('JWT_SECRET_KEY')}")
+# print(f"SECRET_KEY: {app.config.get('SECRET_KEY')}")
+# print(f"JWT_SECRET_KEY: {app.config.get('JWT_SECRET_KEY')}")
 # Logging middleware
-@app.before_request
-def log_request_info():
-    print(f"Request Method: {request.method}")
-    print(f"Request URL: {request.url}")
+# @app.before_request
+# def log_request_info():
+#     print(f"Request Method: {request.method}")
+#     print(f"Request URL: {request.url}")
 
-@app.after_request
-def log_response_info(response):
-    print(f"Response Status: {response.status}")
-    print(f"Response Headers: {response.headers}")
-    return response
+# @app.after_request
+# def log_response_info(response):
+#     print(f"Response Status: {response.status}")
+#     print(f"Response Headers: {response.headers}")
+#     return response
 app.register_blueprint(login_bp, url_prefix='/api')
 app.register_blueprint(colaborador_bp, url_prefix='/api')
 app.register_blueprint(meta_bp, url_prefix='/api')

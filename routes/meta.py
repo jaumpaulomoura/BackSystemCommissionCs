@@ -1,15 +1,15 @@
 from cgitb import text
 from flask import Blueprint, jsonify, request, abort
 from flask_jwt_extended import jwt_required
-from models.colaborador import Colaborador
 from models.meta import Meta
 from flask_jwt_extended import jwt_required
-
-
+from models.colaborador import Colaborador
+from sqlalchemy.orm import aliased
 
 from database import db
 
 meta_bp = Blueprint('meta_bp', __name__)
+
 
 @meta_bp.route('/meta', methods=['GET'], strict_slashes=False)
 @jwt_required()
@@ -17,9 +17,11 @@ def consultar_meta():
     try:
         cupom_vendedora = request.args.get('cupomvendedora')
         time_colaborador = request.args.get('time')
-
+        colaborador_alias = aliased(Colaborador)
         # Inicializa a consulta com join
-        query = db.session.query(Meta, Colaborador).outerjoin(Colaborador, Meta.cupom == Colaborador.cupom)
+        query = db.session.query(Meta, colaborador_alias).outerjoin(
+            colaborador_alias, Meta.cupom == colaborador_alias.cupom
+        )
 
         if cupom_vendedora:
             query = query.filter(Meta.cupom == cupom_vendedora)
