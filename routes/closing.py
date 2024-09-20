@@ -8,6 +8,7 @@ from flask_jwt_extended import jwt_required
 from models.colaborador import Colaborador
 from models.meta import Meta
 from models.premiacaoMeta import PremiacaoMeta
+from models.ticket import Ticket
 from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
 from models.closing import Closing
 from database import db
@@ -141,8 +142,11 @@ def ajustar_para_fuso_horario_local(data_utc):
         return None
     # Converte do UTC para o fuso horário local
     return data_utc.astimezone(local_tz)
+
+
+
 @closing_bp.route('/closingOrder', methods=['GET'], strict_slashes=False)
-@jwt_required()
+# @jwt_required()
 def get_orders():
     start_time = time.time()
     start_date_str = request.args.get('startDate')
@@ -150,33 +154,105 @@ def get_orders():
     cupom_vendedora = request.args.get('cupomvendedora')
     time_colaborador = request.args.get('time') 
     local_tz = pytz.timezone('America/Sao_Paulo')
-    query = db.session.query(VwcsEcomPedidosJp).filter(VwcsEcomPedidosJp.status == 'APROVADO')
+    
+    
+    subquery_aproved = db.session.query(VwcsEcomPedidosJp.pedido).join(
+        Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
+    ).filter(
+        Ticket.reason == 'Status para Cancelado',
+        Ticket.status == 'Autorizado'
+    ).subquery()
 
+    approved_orders_query = db.session.query(VwcsEcomPedidosJp).filter(
+        VwcsEcomPedidosJp.status == 'APROVADO',
+        VwcsEcomPedidosJp.pedido.notin_(subquery_aproved)
+    )
+
+
+    # Filtro por datas
     if start_date_str:
         try:
+            # Verifica e corrige a data de início
             start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
             start_date_utc = start_date_local.astimezone(pytz.utc)
-            query = query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
-        except Exception:
-            return jsonify({'error': 'Formato de start_date inválido. Use o formato YYYY-MM-DD.'}), 400
+            approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
+        except ValueError as e:
+            return jsonify({'error': f'Formato de startDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
     if end_date_str:
         try:
+            # Verifica e corrige a data de fim
             end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
             end_date_utc = end_date_local.astimezone(pytz.utc)
-            query = query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
-        except Exception:
-            return jsonify({'error': 'Formato de end_date inválido. Use o formato YYYY-MM-DD.'}), 400
+            approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
+        except ValueError as e:
+            return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
-    # Filtra por cupom_vendedora
+    # Filtro por cupom_vendedora ou time_colaborador
     if cupom_vendedora:
-        query = query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
-
-    # Filtra por time_colaborador
-    if time_colaborador:
+        approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
+    elif time_colaborador:
         colaboradores = Colaborador.query.filter_by(time=time_colaborador).all()
         cupoms = [colaborador.cupom for colaborador in colaboradores]
-        query = query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
+        if cupoms:
+            approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
+        else:
+            # Se não houver colaboradores encontrados para o time dado, retorna resultado vazio
+            return jsonify([])
+   
+   
+    subquery_reaproved = db.session.query(VwcsEcomPedidosJp.pedido).join(
+        Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
+    ).filter(
+        Ticket.reason == 'Status para Aprovado',
+        Ticket.status == 'Autorizado'
+    ).subquery()
+    
+    non_approved_orders_query = db.session.query(VwcsEcomPedidosJp).join(
+        Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
+    ).filter(
+        VwcsEcomPedidosJp.status != 'APROVADO',
+        VwcsEcomPedidosJp.pedido.in_(subquery_reaproved)
+    )
+   
+    
+    if start_date_str:
+            try:
+                # Verifica e corrige a data de início
+                start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
+                start_date_utc = start_date_local.astimezone(pytz.utc)
+                non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
+            except ValueError as e:
+                return jsonify({'error': f'Formato de startDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+
+    if end_date_str:
+            try:
+                # Verifica e corrige a data de fim
+                end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
+                end_date_utc = end_date_local.astimezone(pytz.utc)
+                non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
+            except ValueError as e:
+                return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+
+        # Filtro por cupom_vendedora ou time_colaborador
+    if cupom_vendedora:
+        non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
+    elif time_colaborador:
+            colaboradores = Colaborador.query.filter_by(time=time_colaborador).all()
+            cupoms = [colaborador.cupom for colaborador in colaboradores]
+            if cupoms:
+                non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
+            else:
+                # Se não houver colaboradores encontrados para o time dado, retorna resultado vazio
+                return jsonify([])
+    
+   
+    query = approved_orders_query.union_all(non_approved_orders_query)
+
+
+
+
+
 
     try:
         grouped_data = (

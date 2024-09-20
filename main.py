@@ -1,4 +1,5 @@
 #main.py
+import smtplib
 from flask import Flask, request
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
@@ -14,19 +15,18 @@ from routes.ticket import ticket_bp
 from routes.reconquest import reconquest_bp
 from routes.closing import closing_bp
 from config import Config  
-# from models import Colaborador, Meta, PremiacaoMeta, VwcsEcomPedidosJp, db, Closing
+from flask import Flask
+from flask_mail import Mail
 
-
-
-# Criação da aplicação Flask e configuração do banco de dados
 app, db = create_app()
-
-# Configuração do CORS
 app.config.from_object(Config)
+
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Inicialização do JWT
 jwt = JWTManager(app)
+
+mail = Mail(app)
+
 # print(f"SECRET_KEY: {app.config.get('SECRET_KEY')}")
 # print(f"JWT_SECRET_KEY: {app.config.get('JWT_SECRET_KEY')}")
 # Logging middleware
@@ -40,6 +40,9 @@ jwt = JWTManager(app)
 #     print(f"Response Status: {response.status}")
 #     print(f"Response Headers: {response.headers}")
 #     return response
+
+
+
 app.register_blueprint(login_bp, url_prefix='/api')
 app.register_blueprint(colaborador_bp, url_prefix='/api')
 app.register_blueprint(meta_bp, url_prefix='/api')

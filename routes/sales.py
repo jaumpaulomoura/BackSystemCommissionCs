@@ -9,7 +9,6 @@ from sqlalchemy.orm import aliased
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from models.colaborador import Colaborador
 
-from models.submittedOrder import SubmittedOrder
 
 
 from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
