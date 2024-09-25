@@ -90,7 +90,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
     )
     .subquery()
     )
-    filters_aproved.append(~VwcsEcomPedidosJp.order_id.in_(subquery_exclude_tickets_cancelled))
+    filters_aproved.append(~VwcsEcomPedidosJp.pedido.in_(subquery_exclude_tickets_cancelled))
 
    
     filters_reaproved= [VwcsEcomPedidosJp.status != 'APROVADO'   ]
@@ -109,57 +109,56 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         )
         .subquery()
     )
-    filters_reaproved.append(VwcsEcomPedidosJp.order_id.in_(subquery_include_tickets_approved))
+    filters_reaproved.append(VwcsEcomPedidosJp.pedido.in_(subquery_include_tickets_approved))
 
     min_data_query_aproved = (
         db.session.query(
-            colaborador_alias.nome.label('nome'),
-            VwcsEcomPedidosJp.cupom_vendedora,
-            VwcsEcomPedidosJp.id_cliente,
-            func.min(VwcsEcomPedidosJp.data_submissao).label('min_data')
+            VwcsEcomPedidosJp.cupom_vendedora.label('cupom_vendedora'),
+            VwcsEcomPedidosJp.id_cliente.label('id_cliente'),
+            func.min(VwcsEcomPedidosJp.data_submissao).label('min_data'),
+            colaborador_alias.nome.label('nome')
         )
         .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
         .filter(and_(*filters_aproved))  
-        .group_by(VwcsEcomPedidosJp.cupom_vendedora, colaborador_alias.nome,VwcsEcomPedidosJp.id_cliente)
-        .subquery()
+        .group_by(VwcsEcomPedidosJp.cupom_vendedora, colaborador_alias.nome, VwcsEcomPedidosJp.id_cliente)
     )
+
     min_data_query_reaproved = (
         db.session.query(
-            colaborador_alias.nome.label('nome'),
-            VwcsEcomPedidosJp.cupom_vendedora,
-            VwcsEcomPedidosJp.id_cliente,
-            func.min(VwcsEcomPedidosJp.data_submissao).label('min_data')
+            VwcsEcomPedidosJp.cupom_vendedora.label('cupom_vendedora'),
+            VwcsEcomPedidosJp.id_cliente.label('id_cliente'),
+            func.min(VwcsEcomPedidosJp.data_submissao).label('min_data'),
+            colaborador_alias.nome.label('nome')
         )
         .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
         .filter(and_(*filters_aproved))  
-        .group_by(VwcsEcomPedidosJp.cupom_vendedora, colaborador_alias.nome,VwcsEcomPedidosJp.id_cliente)
-        .subquery()
+        .group_by(VwcsEcomPedidosJp.cupom_vendedora, colaborador_alias.nome, VwcsEcomPedidosJp.id_cliente)
     )
-    min_data_query = min_data_query_aproved.union_all(min_data_query_reaproved)
-    
-    
-    
+
+    min_data_query = min_data_query_aproved.union_all(min_data_query_reaproved).subquery()
+
     subquery_aproved = (
         db.session.query(
-            VwcsEcomPedidosJp.id_cliente,
+            VwcsEcomPedidosJp.id_cliente.label('id_cliente'),
             func.max(VwcsEcomPedidosJp.data_submissao).label('last_order')
         )
-        .join(min_data_query, VwcsEcomPedidosJp.id_cliente == min_data_query.c.id_cliente)
+        .join(min_data_query, VwcsEcomPedidosJp.id_cliente == min_data_query.c.id_cliente)  # Acesse a coluna com o alias correto
         .filter(
             and_(
                 VwcsEcomPedidosJp.data_submissao < min_data_query.c.min_data,
                 VwcsEcomPedidosJp.data_submissao.isnot(None),
                 VwcsEcomPedidosJp.status == 'APROVADO',
-                ~VwcsEcomPedidosJp.order_id.in_(subquery_exclude_tickets_cancelled)  # Correção: operador ~ posicionado corretamente
+                ~VwcsEcomPedidosJp.pedido.in_(subquery_exclude_tickets_cancelled)
             )
         )
         .group_by(VwcsEcomPedidosJp.id_cliente)
-        .subquery()
+        
     )
+
 
     subquery_reaproved = (
         db.session.query(
-            VwcsEcomPedidosJp.id_cliente,
+            VwcsEcomPedidosJp.id_cliente.label('id_cliente'),
             func.max(VwcsEcomPedidosJp.data_submissao).label('last_order')
         )
         .join(min_data_query, VwcsEcomPedidosJp.id_cliente == min_data_query.c.id_cliente)
@@ -168,15 +167,15 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
                 VwcsEcomPedidosJp.data_submissao < min_data_query.c.min_data,
                 VwcsEcomPedidosJp.data_submissao.isnot(None),
                 VwcsEcomPedidosJp.status != 'APROVADO',
-                ~VwcsEcomPedidosJp.order_id.in_(subquery_include_tickets_approved)  # Correção: operador ~ posicionado corretamente
+                ~VwcsEcomPedidosJp.pedido.in_(subquery_include_tickets_approved)  # Correção: operador ~ posicionado corretamente
             )
         )
         .group_by(VwcsEcomPedidosJp.id_cliente)
-        .subquery()
+        # .subquery()
     )
 
     # União das duas subconsultas
-    subquery = subquery_aproved.union_all(subquery_reaproved)
+    subquery = subquery_aproved.union_all(subquery_reaproved).subquery()
 
    
     # print("Consulta SQL Gerada para subquery:")
@@ -190,11 +189,11 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
 
     orders_query = (
         db.session.query(
-            min_data_query.c.nome,
             min_data_query.c.cupom_vendedora,
             min_data_query.c.id_cliente,
             min_data_query.c.min_data,
-            subquery.c.last_order
+            subquery.c.last_order,
+            min_data_query.c.nome
         )
         .outerjoin(subquery, min_data_query.c.id_cliente == subquery.c.id_cliente)
     )
@@ -222,7 +221,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
 
         current_date = parse_date(format_date_for_query(min_data)) or datetime.now()
         first_day_prev_month, last_day_prev_month = get_previous_month_range(current_date)
-
+        min_data_prev_month = None
         print(first_day_current_month,last_day_prev_month)
         min_data_prev_month_aproved = (
             db.session.query(func.min(VwcsEcomPedidosJp.data_submissao))
@@ -233,7 +232,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
                 VwcsEcomPedidosJp.data_submissao <= last_day_prev_month,
                 VwcsEcomPedidosJp.cupom_vendedora == client_data.cupom_vendedora,
                 VwcsEcomPedidosJp.status == 'APROVADO',
-                ~VwcsEcomPedidosJp.order_id.in_(subquery_exclude_tickets_cancelled)  # Correção: operador ~ para negação
+                ~VwcsEcomPedidosJp.pedido.in_(subquery_exclude_tickets_cancelled)  # Correção: operador ~ para negação
             )
             .scalar()
         )
@@ -247,13 +246,21 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
                 VwcsEcomPedidosJp.data_submissao <= last_day_prev_month,
                 VwcsEcomPedidosJp.cupom_vendedora == client_data.cupom_vendedora,
                 VwcsEcomPedidosJp.status != 'APROVADO',
-                VwcsEcomPedidosJp.order_id.in_(subquery_include_tickets_approved)  # Correção: condição de inclusão
+                VwcsEcomPedidosJp.pedido.in_(subquery_include_tickets_approved)  # Correção: condição de inclusão
             )
             .scalar()
         )
 
         # União das duas consultas
-        min_data_prev_month = min_data_prev_month_aproved.union_all(min_data_prev_month_reaproved)
+        if min_data_prev_month_aproved is not None and min_data_prev_month_reaproved is not None:
+            # Se ambas as datas existem, escolha a menor entre elas
+            min_data_prev_month = min(min_data_prev_month_aproved, min_data_prev_month_reaproved)
+        elif min_data_prev_month_aproved is not None:
+            min_data_prev_month = min_data_prev_month_aproved
+        elif min_data_prev_month_reaproved is not None:
+            min_data_prev_month = min_data_prev_month_reaproved
+        else:
+            min_data_prev_month = None
 
             
        
@@ -266,7 +273,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
                     VwcsEcomPedidosJp.id_cliente == client_data.id_cliente,
                     VwcsEcomPedidosJp.data_submissao < min_data_prev_month,
                     VwcsEcomPedidosJp.status == 'APROVADO',
-                    ~VwcsEcomPedidosJp.order_id.in_(subquery_exclude_tickets_cancelled)
+                    ~VwcsEcomPedidosJp.pedido.in_(subquery_exclude_tickets_cancelled)
                 )
                 .scalar()
             )
@@ -276,11 +283,18 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
                     VwcsEcomPedidosJp.id_cliente == client_data.id_cliente,
                     VwcsEcomPedidosJp.data_submissao < min_data_prev_month,
                     VwcsEcomPedidosJp.status != 'APROVADO',
-                    VwcsEcomPedidosJp.order_id.in_(subquery_include_tickets_approved)
+                    VwcsEcomPedidosJp.pedido.in_(subquery_include_tickets_approved)
                 )
                 .scalar()
             )
-            last_order_prev_month=last_order_prev_month_aproved.union_all(last_order_prev_month_reaproved)
+            if last_order_prev_month_aproved is not None and last_order_prev_month_reaproved is not None:
+                last_order_prev_month = max(last_order_prev_month_aproved, last_order_prev_month_reaproved)
+            elif last_order_prev_month_aproved is not None:
+                last_order_prev_month = last_order_prev_month_aproved
+            elif last_order_prev_month_reaproved is not None:
+                last_order_prev_month = last_order_prev_month_reaproved
+            else:
+                last_order_prev_month = None
         # print("Resultado da last_order_prev_month:")
         # print("Resultado da last_order_prev_month:", last_order_prev_month)
         if min_data_prev_month and last_order_prev_month:
@@ -314,7 +328,6 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
             if ticket_query:
                 status = 'Reconquista'
         combined_results.append({
-            'nome': client_data.nome,
             'cupom_vendedora': client_data.cupom_vendedora, 
             'id_cliente': client_data.id_cliente,
             'last_order': adjust_for_timezone(format_date_for_query(last_order)),
@@ -324,7 +337,8 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
             'min_data_mes_anterior': adjust_for_timezone(format_date_for_query(min_data_prev_month)),
             'dias_mes_anterior': days_mes_anterior,
             'reqconquista_mes_anterior': status,        
-            'Status': status
+            'Status': status,
+            'nome': client_data.nome
         })
         print("Resultado da combined_results:")
         print(combined_results)
@@ -332,7 +346,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
     return combined_results
 
 @reconquest_bp.route('/reconquest', methods=['GET'], strict_slashes=False)
-@jwt_required()
+# @jwt_required()
 def reconquest():
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')

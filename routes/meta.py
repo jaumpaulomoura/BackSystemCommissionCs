@@ -1,4 +1,5 @@
 from cgitb import text
+from operator import and_
 from flask import Blueprint, jsonify, request, abort
 from flask_jwt_extended import jwt_required
 from models.meta import Meta
@@ -58,12 +59,12 @@ def consultar_meta():
 def create_meta():
     data = request.get_json()
 
-    # Verificar se a solicitação contém um array de objetos
     if not isinstance(data, list):
         return jsonify({'error': 'Formato inválido, espere um array de objetos.'}), 400
 
     errors = []
     success_messages = []
+    duplicate_error = False  # Flag para erro de duplicação
 
     for item in data:
         cupom = item.get('cupom')
@@ -72,40 +73,45 @@ def create_meta():
         valor = item.get('valor')
         mes_ano = item.get('mes_ano')
 
+        if not all([cupom, meta, porcentagem, valor, mes_ano]):
+            errors.append({'error': 'Campos obrigatórios faltando'})
+            continue
+
         try:
-            # Verificar duplicidade
             existing_meta = Meta.query.filter(
-                (Meta.cupom == cupom) &
-                (Meta.meta == meta) &
-                (Meta.mes_ano == mes_ano)
+                Meta.cupom == cupom,
+                Meta.meta == meta,
+                Meta.mes_ano == mes_ano
             ).first()
 
             if existing_meta:
-                errors.append({'cupom': cupom, 'meta': meta, 'mes_ano': mes_ano, 'error': 'A combinação já existe'})
-                continue  # Pular para o próximo item
+                errors = ['A combinação já existe']  # Substitua a lista por uma única mensagem
+                break  # Para sair do loop após encontrar a duplicidade
 
-            # Inserir nova meta
+
+
             new_meta = Meta(cupom=cupom, meta=meta, porcentagem=porcentagem, valor=valor, mes_ano=mes_ano)
             db.session.add(new_meta)
-            success_messages.append({'cupom': cupom, 'meta': meta, 'mes_ano': mes_ano, 'message': 'Meta criada com sucesso'})
+            success_messages.append({'message': 'Meta criada com sucesso'})
 
         except Exception as e:
-            print(f"Erro ao criar meta: {e}")
-            errors.append({'cupom': cupom, 'meta': meta, 'mes_ano': mes_ano, 'error': 'Erro ao criar meta'})
+            db.session.rollback()
+            errors.append({'error': f'Erro ao criar meta: {str(e)}'})
 
     try:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        print(f"Erro ao salvar alterações no banco de dados: {e}")
-        return jsonify({'error': 'Erro ao salvar alterações no banco de dados'}), 500
+        return jsonify({'error': 'Erro ao salvar alterações no banco de dados: ' + str(e)}), 500
 
-    return jsonify({
-        'success': success_messages,
-        'errors': errors
-    }), 201
-
-
+    # Se houver erros, retornar 207 com erros
+    if errors:
+        return jsonify({
+            'success': success_messages,
+            'errors': errors
+        }), 207  # Multi-Status, indicando que algumas operações falharam
+    else:
+        return jsonify({'success': success_messages}), 201  # Created
 
 @meta_bp.route('/meta', methods=['DELETE'], strict_slashes=False)
 @jwt_required()
