@@ -10,9 +10,14 @@ from datetime import datetime
 import pytz
 
 orders_bp = Blueprint('orders_bp', __name__)
-
+def parse_currency(value):
+    if value is None or value.strip() == '':
+        return 0.0  # Retorna 0.0 se o valor for None ou uma string vazia
+    # Remove espaços e substitui vírgula por ponto
+    value = value.replace('R$', '').replace('.', '').replace(',', '.').strip()
+    return float(value) if value else 0.0
 @orders_bp.route('/orders', methods=['GET'], strict_slashes=False)
-# @jwt_required()
+@jwt_required()
 def get_orders():
     # Obtém os parâmetros da query
     start_date_str = request.args.get('startDate')
@@ -118,12 +123,24 @@ def get_orders():
     
    
     union_query = approved_orders_query.union_all(non_approved_orders_query)
-
     try:
         orders = union_query.all()
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    results = [order.to_dict() for order in orders]
+    # Modificar a construção do resultado para incluir todos os campos e a diferença
+# Modificar a construção do resultado para incluir todos os campos e a diferença
+    results = []
+    for order in orders:
+        order_dict = order.to_dict()  # Convertendo o objeto em dicionário
+
+        # Convertendo valor_pago e valor_frete para float e calculando a diferença
+        valor_pago = parse_currency(order_dict.get('valor_pago', ''))
+        valor_frete = parse_currency(order_dict.get('valor_frete', ''))
+
+        # Calculando valor comissional
+        order_dict['valor_comissional'] = valor_pago - valor_frete
+        results.append(order_dict)
 
     return jsonify(results) if results else jsonify([])
+

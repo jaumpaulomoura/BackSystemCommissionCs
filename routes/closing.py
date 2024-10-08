@@ -20,7 +20,7 @@ closing_bp = Blueprint('closing_bp', __name__)
 
 
 @closing_bp.route('/closing', methods=['GET'], strict_slashes=False)
-@jwt_required()
+# @jwt_required()
 def get_closing():
     start_time = time.time()
 

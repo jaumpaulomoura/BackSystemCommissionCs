@@ -76,6 +76,8 @@ def delete_premiacaoReconquista():
     time = request.args.get('time')
     valor = request.args.get('valor')
 
+   # Print dos dados que estão chegando
+    print(f"Dados recebidos: descricao={descricao}, time={time}, valor={valor}")
     try:
         query = PremiacaoReconquista.query
         if descricao:
