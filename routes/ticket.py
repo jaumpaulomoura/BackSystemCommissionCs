@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request, abort
 # from database import db
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import text
+from sqlalchemy import and_, text
 from models.colaborador import Colaborador
 from flask_jwt_extended import jwt_required
 from models.ticket import Ticket
@@ -13,7 +13,7 @@ from database import db
 ticket_bp = Blueprint('ticket_bp', __name__)
 
 @ticket_bp.route('/ticket', methods=['GET'], strict_slashes=False)
-@jwt_required()  # Ensure this is uncommented to protect the route
+# @jwt_required()  # Ensure this is uncommented to protect the route
 def consultar_ticket():
     try:
         cupom_vendedora = request.args.get('cupomvendedora')
@@ -21,8 +21,14 @@ def consultar_ticket():
 
         # Create an aliased reference for Colaborador if necessary
         query = db.session.query(Ticket, Colaborador.nome).outerjoin(
-            Colaborador, Ticket.cupomvendedora == Colaborador.cupom
+            Colaborador, 
+            and_(
+                Ticket.cupomvendedora == Colaborador.cupom,
+                Colaborador.dtadmissao <= Ticket.dateCreated,
+                Colaborador.dtdemissao >= Ticket.dateCreated
+            )
         )
+
 
         if cupom_vendedora:
             query = query.filter(Ticket.cupomvendedora == cupom_vendedora)
@@ -56,8 +62,8 @@ def consultar_ticket():
         return response
 
     except Exception as e:
-        return jsonify({'error': 'Erro na consulta SQL'}), 500
-
+        print(f"Error occurred: {str(e)}")  # Log the error for debugging
+        return jsonify({'error': 'Erro na consulta SQL', 'details': str(e)}), 500
 
 @ticket_bp.route('/ticket', methods=['POST'])
 @jwt_required()

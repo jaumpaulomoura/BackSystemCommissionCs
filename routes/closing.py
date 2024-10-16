@@ -1,7 +1,7 @@
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 import pytz
-from sqlalchemy import Numeric, cast, func
+from sqlalchemy import Numeric, and_, cast, func
 from flask_jwt_extended import jwt_required
 # from models import Colaborador, Meta, PremiacaoMeta, VwcsEcomPedidosJp, db, Closing
 
@@ -163,10 +163,23 @@ def get_orders():
         Ticket.status == 'Autorizado'
     ).subquery()
 
-    approved_orders_query = db.session.query(VwcsEcomPedidosJp).filter(
+    approved_orders_query = db.session.query(
+        VwcsEcomPedidosJp,
+        Colaborador.nome,
+        Colaborador.funcao,
+        Colaborador.time,
+        Colaborador.dtadmissao,
+        Colaborador.dtdemissao
+    ).outerjoin(
+        Colaborador, and_(
+            VwcsEcomPedidosJp.cupom_vendedora == Colaborador.cupom,
+            Colaborador.dtadmissao <= VwcsEcomPedidosJp.data_submissao,
+            Colaborador.dtdemissao >= VwcsEcomPedidosJp.data_submissao
+        )
+    ).filter(
         VwcsEcomPedidosJp.status == 'APROVADO',
         VwcsEcomPedidosJp.pedido.notin_(subquery_aproved)
-    )
+    ).distinct()
 
 
     # Filtro por datas
@@ -208,12 +221,25 @@ def get_orders():
         Ticket.status == 'Autorizado'
     ).subquery()
     
-    non_approved_orders_query = db.session.query(VwcsEcomPedidosJp).join(
+    non_approved_orders_query = db.session.query(
+        VwcsEcomPedidosJp,
+        Colaborador.nome,
+        Colaborador.funcao,
+        Colaborador.time,
+        Colaborador.dtadmissao,
+        Colaborador.dtdemissao
+    ).outerjoin(
         Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
+    ).outerjoin(
+        Colaborador, and_(
+            VwcsEcomPedidosJp.cupom_vendedora == Colaborador.cupom,
+            Colaborador.dtadmissao <= VwcsEcomPedidosJp.data_submissao,
+            Colaborador.dtdemissao >= VwcsEcomPedidosJp.data_submissao
+        )
     ).filter(
         VwcsEcomPedidosJp.status != 'APROVADO',
         VwcsEcomPedidosJp.pedido.in_(subquery_reaproved)
-    )
+    ).distinct()
    
     
     if start_date_str:
@@ -258,56 +284,52 @@ def get_orders():
         grouped_data = (
             query.with_entities(
                 VwcsEcomPedidosJp.cupom_vendedora,
+                Colaborador.nome,
+                Colaborador.funcao,
+                func.concat(VwcsEcomPedidosJp.cupom_vendedora, '-', Colaborador.nome).label('id'),
                 func.min(VwcsEcomPedidosJp.data_submissao).label('min_date'),
                 func.sum(cast(func.replace(VwcsEcomPedidosJp.valor_pago, ',', '.'), Numeric)).label('total_valor_pago'),
                 func.sum(cast(func.replace(VwcsEcomPedidosJp.valor_frete, ',', '.'), Numeric)).label('total_valor_frete')
             )
             .group_by(
-                VwcsEcomPedidosJp.cupom_vendedora
+                VwcsEcomPedidosJp.cupom_vendedora,
+                Colaborador.nome,Colaborador.funcao,
             )
         ).all()
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
     results = []
+    gerentes_processados = set()  # Para rastrear gerentes já processados
+    
     for data in grouped_data:
-
         total_comissao = (
             (float(data.total_valor_pago) if data.total_valor_pago is not None else 0.0) -
             (float(data.total_valor_frete) if data.total_valor_frete is not None else 0.0)
         )
 
-        # Garantir que mes e ano sejam inteiros e formatar mes_ano corretamente
-        # mes = int(data.min_date) if data.min_date is not None else 0
-        # ano = int(data.min_date) if data.min_date is not None else 0
-        # Extrai mês e ano da data ajustada
-        # mes = data_inicio_mes_local.month
-        # ano = data_inicio_mes_local.year
-         # Garantir que min_date seja um objeto datetime
-        if data.min_date is not None:
-            mes = data.min_date.month
-            ano = data.min_date.year
-        else:
-            mes = 0
-            ano = 0
+        # Processa o mês e o ano
+        mes = data.min_date.month if data.min_date else 0
+        ano = data.min_date.year if data.min_date else 0
         mes_formatado = f"{mes:02d}"
         mes_ano = f"{mes_formatado}-{ano}"
-        print(mes_ano)
 
-
-        # Inicializa as variáveis com valores padrão
-        selected_meta = 'Não atingiu a meta'
+        # Inicializa as variáveis
+        selected_meta = 'Não tem meta cadastrada'
         porcentagem = 0
         valor_meta = 0
         premiacao_meta = 0 
 
-        # Busca a meta correspondente ordenada por valor de forma decrescente
-        metas = db.session.query(Meta).filter(
-            Meta.cupom == data.cupom_vendedora,
-            Meta.mes_ano == mes_ano
-        ).order_by(Meta.valor.desc()).all()
-
-        
+        # Busca a meta correspondente
+        metas = (
+            db.session.query(Meta)
+            .filter(
+                func.concat(Meta.cupom, '-', Meta.nome) == data.id,
+                Meta.mes_ano == mes_ano
+            )
+            .order_by(Meta.valor.desc())
+            .all()
+        )
 
         # Verifica qual meta se aplica
         for meta in metas:
@@ -317,13 +339,13 @@ def get_orders():
                 valor_meta = meta.valor
                 break
 
-        # Busca o time do colaborador
+        # Busca o colaborador
         colaborador = db.session.query(Colaborador).filter(
-            Colaborador.cupom == data.cupom_vendedora
+            func.concat(Colaborador.cupom, '-', Colaborador.nome) == data.id,
         ).first()
 
         if colaborador:
-            # Busca a premiacao correspondente
+            # Busca a premiação correspondente
             premiacao = db.session.query(PremiacaoMeta).filter(
                 PremiacaoMeta.descricao == selected_meta,
                 PremiacaoMeta.time == colaborador.time
@@ -332,10 +354,13 @@ def get_orders():
             if premiacao:
                 premiacao_meta = premiacao.valor
             else:
-                # Se não houver premiacao, pode deixar premiacao_meta como 0, ou definir um valor padrão
                 premiacao_meta = 0
+        
+        # Adiciona os resultados do colaborador
         results.append({
             'cupom_vendedora': data.cupom_vendedora,
+            'nome': data.nome,
+            'funcao':data.funcao,
             'mes': mes,
             'ano': ano,
             'total_valor_pago': float(data.total_valor_pago) if data.total_valor_pago is not None else 0.0,
@@ -344,13 +369,57 @@ def get_orders():
             'meta': selected_meta,
             'porcentagem': porcentagem,
             'premiacao_meta': premiacao_meta,
-            'Valor_comisao':total_comissao*porcentagem
+            'Valor_comisao': total_comissao * porcentagem
         })
+
+        
+        # if colaborador:
+        #     # Busca o primeiro colaborador com o mesmo time
+        #     primeiro_colaborador = db.session.query(Colaborador).filter(
+        #         Colaborador.time == colaborador.time
+        #     ).first()
+        #     print(primeiro_colaborador)
+        #     # Verifica se foi encontrado um colaborador e se ele é um Gerente
+        #     if primeiro_colaborador and primeiro_colaborador.funcao == 'Gerente':
+        #         # Adiciona o gerente ao conjunto de gerentes processados
+        #         if primeiro_colaborador.nome not in gerentes_processados:
+        #             gerentes_processados.add(primeiro_colaborador.nome)
+
+        #     # Adiciona o resultado do gerente ao array
+        #             results.append({
+        #                 'cupom_vendedora': primeiro_colaborador.cupom,
+        #                 'nome': primeiro_colaborador.nome,
+        #                 'mes': mes,
+        #                 'ano': ano,
+        #                 'total_valor_pago': 0.0,  # Sem pagamentos diretos
+        #                 'total_valor_frete': 0.0,  # Sem frete direto
+        #                 'total_comissional': 0.0,  # Sem comissão direta
+        #                 'meta': 'Não aplica',  # Meta não aplicável
+        #                 'porcentagem': 0,  # Sem porcentagem específica
+        #                 'premiacao_meta': 0,  # Sem premiação
+        #                 'Valor_comisao': 0  # Sem comissão direta
+        #             })
 
     elapsed_time = time.time() - start_time
     print(f"Tempo de execução: {elapsed_time:.4f} segundos")
 
     return jsonify(results)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @closing_bp.route('/closing', methods=['POST'])
 @jwt_required()
@@ -372,6 +441,7 @@ def create_colaborador():
             ano = data.get('ano')
             mes_ano = data.get('mes_ano')
             cupom_vendedora = data.get('cupom_vendedora')
+            funcao = data.get('funcao')
             total_pago = data.get('total_pago')
             total_frete = data.get('total_frete')
             total_comissional = data.get('total_comissional')
@@ -426,7 +496,7 @@ def create_colaborador():
                 }), 409
 
             new_closing = Closing(
-                mes=mes, ano=ano, mes_ano=mes_ano, cupom_vendedora=cupom_vendedora, total_pago=total_pago,
+                mes=mes, ano=ano, mes_ano=mes_ano, cupom_vendedora=cupom_vendedora,funcao=funcao, total_pago=total_pago,
                 total_frete=total_frete, total_comissional=total_comissional, meta_atingida=meta_atingida,
                 porcentagem_meta=porcentagem_meta, valor_comissao=valor_comissao, premiacao_meta=premiacao_meta,
                 qtd_reconquista=qtd_reconquista, vlr_reconquista=vlr_reconquista, vlr_total_reco=vlr_total_reco,

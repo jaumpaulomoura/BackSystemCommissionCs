@@ -11,7 +11,6 @@ from database import db
 
 meta_bp = Blueprint('meta_bp', __name__)
 
-
 @meta_bp.route('/meta', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def consultar_meta():
@@ -19,32 +18,35 @@ def consultar_meta():
         cupom_vendedora = request.args.get('cupomvendedora')
         time_colaborador = request.args.get('time')
         colaborador_alias = aliased(Colaborador)
-        # Inicializa a consulta com join
+
+        # Inicializa a consulta com outer join
         query = db.session.query(Meta, colaborador_alias).outerjoin(
-            colaborador_alias, Meta.cupom == colaborador_alias.cupom
+            colaborador_alias,
+            (Meta.cupom == colaborador_alias.cupom) & (Meta.nome == colaborador_alias.nome)  # Amarra pelo cupom e nome
         )
 
+        # Aplicar filtros somente depois da junção
         if cupom_vendedora:
             query = query.filter(Meta.cupom == cupom_vendedora)
-        elif time_colaborador:
-            colaboradores = Colaborador.query.filter_by(time=time_colaborador).all()
-            cupoms = [colaborador.cupom for colaborador in colaboradores]
-            query = query.filter(Meta.cupom.in_(cupoms))
+        if time_colaborador:
+            query = query.filter(colaborador_alias.time == time_colaborador)
 
         results = query.all()
 
         results_col = []
         for meta, colaborador in results:
             results_col.append({
-                'id': f"{meta.cupom}_{meta.mes_ano}_{meta.meta}",
+                'id': f"{meta.cupom}_{meta.nome},_{meta.mes_ano}_{meta.meta}",
                 'cupom': meta.cupom,
+                'nome': meta.nome,
                 'meta': meta.meta,
                 'porcentagem': meta.porcentagem,
                 'valor': meta.valor,
                 'mes_ano': meta.mes_ano,
-                'colaborador_nome': colaborador.nome if colaborador else None,
-                'colaborador_time': colaborador.time if colaborador else None
+                'time': colaborador.time if colaborador else None
             })
+
+        print(results_col)
 
         response = jsonify(results_col)
         response.headers.add("Access-Control-Allow-Origin", "*")
@@ -52,7 +54,8 @@ def consultar_meta():
 
     except Exception as e:
         print(f"Erro na consulta SQL: {e}")
-        return jsonify({'error': 'Erro na consulta SQL'}), 500
+        return jsonify({'error': str(e)}), 500
+
 
 @meta_bp.route('/meta', methods=['POST'])
 @jwt_required()
@@ -68,6 +71,7 @@ def create_meta():
 
     for item in data:
         cupom = item.get('cupom')
+        nome = item.get('nome')
         meta = item.get('meta')
         porcentagem = item.get('porcentagem')
         valor = item.get('valor')
@@ -80,6 +84,7 @@ def create_meta():
         try:
             existing_meta = Meta.query.filter(
                 Meta.cupom == cupom,
+                Meta.nome == nome,
                 Meta.meta == meta,
                 Meta.mes_ano == mes_ano
             ).first()
@@ -90,7 +95,7 @@ def create_meta():
 
 
 
-            new_meta = Meta(cupom=cupom, meta=meta, porcentagem=porcentagem, valor=valor, mes_ano=mes_ano)
+            new_meta = Meta(cupom=cupom,nome=nome, meta=meta, porcentagem=porcentagem, valor=valor, mes_ano=mes_ano)
             db.session.add(new_meta)
             success_messages.append({'message': 'Meta criada com sucesso'})
 
@@ -117,6 +122,7 @@ def create_meta():
 @jwt_required()
 def delete_meta():
     cupom = request.args.get('cupom')
+    nome = request.args.get('nome')
     meta = request.args.get('meta')
     porcentagem = request.args.get('porcentagem')
     valor = request.args.get('valor')
@@ -126,6 +132,8 @@ def delete_meta():
         query = Meta.query
         if cupom:
             query = query.filter_by(cupom=cupom)
+        if nome:
+            query = query.filter_by(nome=nome)
         if meta:
             query = query.filter_by(meta=meta)
         if porcentagem:
@@ -145,9 +153,9 @@ def delete_meta():
         print(f"Erro ao deletar meta: {e}")
         return jsonify({'error': 'Erro ao deletar meta'}), 500
 
-@meta_bp.route('/meta/<string:cupom>', methods=['PUT'])
+@meta_bp.route('/meta/<string:cupom>/<string:nome>', methods=['PUT'])
 @jwt_required()
-def update_meta(cupom):
+def update_meta(cupom, nome):
     data = request.get_json()
     novo_meta = data.get('meta')
     porcentagem = float(data.get('porcentagem'))
@@ -159,6 +167,7 @@ def update_meta(cupom):
 
         meta_records = Meta.query.filter(
             Meta.cupom == cupom,
+            Meta.nome == nome,
             Meta.mes_ano == mes_ano,
             Meta.meta == novo_meta
         ).all()

@@ -127,7 +127,14 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
             func.min(VwcsEcomPedidosJp.data_submissao).label('min_data'),
             colaborador_alias.nome.label('nome')
         )
-        .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
+         .join(
+        colaborador_alias, 
+        and_(
+            colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora,
+            VwcsEcomPedidosJp.data_submissao >= colaborador_alias.dtadmissao,
+            VwcsEcomPedidosJp.data_submissao <= colaborador_alias.dtdemissao
+        )
+    )
         .filter(and_(*filters_aproved))  
         .distinct(VwcsEcomPedidosJp.id_cliente)
         .group_by(VwcsEcomPedidosJp.cupom_vendedora, colaborador_alias.nome, VwcsEcomPedidosJp.id_cliente)
@@ -140,7 +147,14 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
             func.min(VwcsEcomPedidosJp.data_submissao).label('min_data'),
             colaborador_alias.nome.label('nome')
         )
-        .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
+          .join(
+        colaborador_alias, 
+        and_(
+            colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora,
+            VwcsEcomPedidosJp.data_submissao >= colaborador_alias.dtadmissao,
+            VwcsEcomPedidosJp.data_submissao <= colaborador_alias.dtdemissao
+        )
+    )
         .filter(and_(*filters_aproved))  
         .distinct(VwcsEcomPedidosJp.id_cliente)
         .group_by(VwcsEcomPedidosJp.cupom_vendedora, colaborador_alias.nome, VwcsEcomPedidosJp.id_cliente)
@@ -394,7 +408,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
     return combined_results
 
 @reconquest_bp.route('/reconquest', methods=['GET'], strict_slashes=False)
-@jwt_required()
+# @jwt_required()
 def reconquest():
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
@@ -425,7 +439,7 @@ def calculate_counts_by_cupom(orders):
     return results
 
 @reconquest_bp.route('/reconquestGroup', methods=['GET'], strict_slashes=False)
-@jwt_required()
+# @jwt_required()
 def get_summary_summarys():
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
@@ -438,10 +452,10 @@ def get_summary_summarys():
     # Organizar os pedidos por `cupom_vendedora`
     orders_by_cupom = {}
     for order in all_orders:
-        cupom = order['cupom_vendedora']
-        if cupom not in orders_by_cupom:
-            orders_by_cupom[cupom] = []
-        orders_by_cupom[cupom].append(order)
+        nome = order['nome']
+        if nome not in orders_by_cupom:
+            orders_by_cupom[nome] = []
+        orders_by_cupom[nome].append(order)
     
     # Calcular as contagens para cada cupom
     response = calculate_counts_by_cupom(orders_by_cupom)

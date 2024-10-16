@@ -10,8 +10,8 @@ class Ticket(db.Model):
     notes = db.Column(db.String(300))
     status = db.Column(db.String(100), nullable=False)
     cupomvendedora = db.Column(db.String(100), nullable=False)
-    dateCreated = db.Column('datecreated', db.Date, default=datetime.utcnow, nullable=False)
-    dateUpdated = db.Column('dateupdated', db.Date, onupdate=datetime.utcnow)
+    dateCreated = db.Column('datecreated', db.DateTime, default=datetime.utcnow, nullable=False)
+    dateUpdated = db.Column('dateupdated', db.DateTime, onupdate=datetime.utcnow)
 
     def __init__(self, orderId, octadeskId, reason,cupomvendedora, notes=None, status='Aberto', dateCreated=None, dateUpdated=None):
         self.orderId = orderId

@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify
-from sqlalchemy import func
-# from models import db, VwcsEcomPedidosJp, Colaborador
+from sqlalchemy import and_, func
 from flask_jwt_extended import jwt_required
 from models.colaborador import Colaborador
 from models.ticket import Ticket
@@ -10,26 +9,54 @@ from datetime import datetime
 import pytz
 
 orders_bp = Blueprint('orders_bp', __name__)
+
 def parse_currency(value):
     if value is None or value.strip() == '':
-        return 0.0  # Retorna 0.0 se o valor for None ou uma string vazia
-    # Remove espaços e substitui vírgula por ponto
+        return 0.0
+    # Remove currency symbols, commas and spaces, then convert to float
     value = value.replace('R$', '').replace('.', '').replace(',', '.').strip()
     return float(value) if value else 0.0
+
+def filter_orders(query, start_date_str, end_date_str, cupom_vendedora, time_colaborador):
+    # Date filtering
+    if start_date_str:
+        try:
+            start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=pytz.timezone('America/Sao_Paulo'))
+            start_date_utc = start_date_local.astimezone(pytz.utc)
+            query = query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
+        except ValueError as e:
+            return query, jsonify({'error': f'Formato de startDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+
+    if end_date_str:
+        try:
+            end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=pytz.timezone('America/Sao_Paulo'))
+            end_date_utc = end_date_local.astimezone(pytz.utc)
+            query = query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
+        except ValueError as e:
+            return query, jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+
+    # Filter by cupom_vendedora or time_colaborador
+    if cupom_vendedora:
+        query = query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
+    elif time_colaborador:
+        colaboradores = Colaborador.query.filter_by(time=time_colaborador).all()
+        cupoms = [colaborador.cupom for colaborador in colaboradores]
+        if cupoms:
+            query = query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
+        else:
+            return query, jsonify([]), 200  # Return empty if no collaborators found
+
+    return query, None, None  # No error
+
 @orders_bp.route('/orders', methods=['GET'], strict_slashes=False)
-@jwt_required()
+# @jwt_required()  # Uncomment if using JWT
 def get_orders():
-    # Obtém os parâmetros da query
     start_date_str = request.args.get('startDate')
     end_date_str = request.args.get('endDate')
     cupom_vendedora = request.args.get('cupomvendedora')
     time_colaborador = request.args.get('time')
-
-    # Configuração do fuso horário local
     local_tz = pytz.timezone('America/Sao_Paulo')
-
-    # Consulta base
-    # query = db.session.query(VwcsEcomPedidosJp).filter(VwcsEcomPedidosJp.status == 'APROVADO')
+    # Approved Orders
     subquery_aproved = db.session.query(VwcsEcomPedidosJp.pedido).join(
         Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
     ).filter(
@@ -37,110 +64,106 @@ def get_orders():
         Ticket.status == 'Autorizado'
     ).subquery()
 
-    approved_orders_query = db.session.query(VwcsEcomPedidosJp).filter(
+    approved_orders_query = db.session.query(
+        VwcsEcomPedidosJp,
+        Colaborador.nome,
+        Colaborador.funcao,
+        Colaborador.time,
+        Colaborador.dtadmissao,
+        Colaborador.dtdemissao
+    ).outerjoin(
+        Colaborador, and_(
+            VwcsEcomPedidosJp.cupom_vendedora == Colaborador.cupom,
+            Colaborador.dtadmissao <= VwcsEcomPedidosJp.data_submissao,
+            Colaborador.dtdemissao >= VwcsEcomPedidosJp.data_submissao
+        )
+    ).filter(
         VwcsEcomPedidosJp.status == 'APROVADO',
         VwcsEcomPedidosJp.pedido.notin_(subquery_aproved)
-)
+    ).distinct()
 
+    approved_orders_query, error_response, status_code = filter_orders(approved_orders_query, start_date_str, end_date_str, cupom_vendedora, time_colaborador)
+    if error_response:
+        return error_response, status_code
 
-    # Filtro por datas
-    if start_date_str:
-        try:
-            # Verifica e corrige a data de início
-            start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
-            start_date_utc = start_date_local.astimezone(pytz.utc)
-            approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
-        except ValueError as e:
-            return jsonify({'error': f'Formato de startDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
-
-    if end_date_str:
-        try:
-            # Verifica e corrige a data de fim
-            end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
-            end_date_utc = end_date_local.astimezone(pytz.utc)
-            approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
-        except ValueError as e:
-            return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
-
-    # Filtro por cupom_vendedora ou time_colaborador
-    if cupom_vendedora:
-        approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
-    elif time_colaborador:
-        colaboradores = Colaborador.query.filter_by(time=time_colaborador).all()
-        cupoms = [colaborador.cupom for colaborador in colaboradores]
-        if cupoms:
-            approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
-        else:
-            # Se não houver colaboradores encontrados para o time dado, retorna resultado vazio
-            return jsonify([])
-   
+    # Non-Approved Orders
     subquery_reaproved = db.session.query(VwcsEcomPedidosJp.pedido).join(
         Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
     ).filter(
         Ticket.reason == 'Status para Aprovado',
         Ticket.status == 'Autorizado'
     ).subquery()
-    
-    non_approved_orders_query = db.session.query(VwcsEcomPedidosJp).join(
+
+    non_approved_orders_query = db.session.query(
+        VwcsEcomPedidosJp,
+        Colaborador.nome,
+        Colaborador.funcao,
+        Colaborador.time,
+        Colaborador.dtadmissao,
+        Colaborador.dtdemissao
+    ).outerjoin(
         Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
+    ).outerjoin(
+        Colaborador, and_(
+            VwcsEcomPedidosJp.cupom_vendedora == Colaborador.cupom,
+            Colaborador.dtadmissao <= VwcsEcomPedidosJp.data_submissao,
+            Colaborador.dtdemissao >= VwcsEcomPedidosJp.data_submissao
+        )
     ).filter(
         VwcsEcomPedidosJp.status != 'APROVADO',
         VwcsEcomPedidosJp.pedido.in_(subquery_reaproved)
-    )
-   
-   
-   
-   
-    
-    if start_date_str:
-            try:
-                # Verifica e corrige a data de início
-                start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
-                start_date_utc = start_date_local.astimezone(pytz.utc)
-                non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
-            except ValueError as e:
-                return jsonify({'error': f'Formato de startDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+    ).distinct()
 
-    if end_date_str:
-            try:
-                # Verifica e corrige a data de fim
-                end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
-                end_date_utc = end_date_local.astimezone(pytz.utc)
-                non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
-            except ValueError as e:
-                return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+    non_approved_orders_query, error_response, status_code = filter_orders(non_approved_orders_query, start_date_str, end_date_str, cupom_vendedora, time_colaborador)
+    if error_response:
+        return error_response, status_code
 
-        # Filtro por cupom_vendedora ou time_colaborador
-    if cupom_vendedora:
-        non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
-    elif time_colaborador:
-            colaboradores = Colaborador.query.filter_by(time=time_colaborador).all()
-            cupoms = [colaborador.cupom for colaborador in colaboradores]
-            if cupoms:
-                non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
-            else:
-                return jsonify([])
-    
-   
+    # Combine queries
     union_query = approved_orders_query.union_all(non_approved_orders_query)
+
     try:
         orders = union_query.all()
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    # Modificar a construção do resultado para incluir todos os campos e a diferença
-# Modificar a construção do resultado para incluir todos os campos e a diferença
+    # Build the response
     results = []
     for order in orders:
-        order_dict = order.to_dict()  # Convertendo o objeto em dicionário
+        order_dict = {
+            'pedido': order.VwcsEcomPedidosJp.pedido,
+            'data_submissao': order.VwcsEcomPedidosJp.data_submissao.isoformat(),
+            'hora_submissao': order.VwcsEcomPedidosJp.hora_submissao.isoformat(),
+            'cupom':order.VwcsEcomPedidosJp.cupom,
+            'cupom_vendedora': order.VwcsEcomPedidosJp.cupom_vendedora,
+            'id_cliente':order.VwcsEcomPedidosJp.id_cliente,
+            'metodo_pagamento':order.VwcsEcomPedidosJp.metodo_pagamento,
+            'parcelas':order.VwcsEcomPedidosJp.parcelas,
+            'valor_pago': order.VwcsEcomPedidosJp.valor_pago,
+            'valor_frete': order.VwcsEcomPedidosJp.valor_frete,
+            'status': order.VwcsEcomPedidosJp.status,
+            'total_itens': order.VwcsEcomPedidosJp.total_itens,
+            'envio': order.VwcsEcomPedidosJp.envio,
+            'idloja': order.VwcsEcomPedidosJp.idloja,
+            'site': order.VwcsEcomPedidosJp.site,
+            'valor_bruto': order.VwcsEcomPedidosJp.valor_bruto,
+            'valor_desconto': order.VwcsEcomPedidosJp.valor_desconto,
+            'valor_comissional': parse_currency(order.VwcsEcomPedidosJp.valor_pago) - parse_currency(order.VwcsEcomPedidosJp.valor_frete),
+            'nome': order.nome,
+            'funcao': order.funcao,
+            'time': order.time,
+            'dtadmissao': order.dtadmissao,
+            'dtdemissao': order.dtdemissao
+        }
 
-        # Convertendo valor_pago e valor_frete para float e calculando a diferença
+        # Calcula o valor comissional
         valor_pago = parse_currency(order_dict.get('valor_pago', ''))
         valor_frete = parse_currency(order_dict.get('valor_frete', ''))
-
-        # Calculando valor comissional
         order_dict['valor_comissional'] = valor_pago - valor_frete
+        
         results.append(order_dict)
 
     return jsonify(results) if results else jsonify([])
+
+
+
 

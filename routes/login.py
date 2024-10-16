@@ -115,7 +115,7 @@ def login():
 
     colaborador = Colaborador.query.filter_by(email=email).first()
     if colaborador and check_password_hash(colaborador.password, password):
-        access_token = create_access_token(identity=colaborador.email, expires_delta=timedelta(hours=1))
+        access_token = create_access_token(identity=colaborador.email, expires_delta=timedelta(hours=9))
         return jsonify(access_token=access_token), 200
 
     return jsonify({'message': 'Invalid credentials'}), 401

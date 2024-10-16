@@ -18,6 +18,7 @@ class Closing(db.Model):
     ano = db.Column(db.String, nullable=False)
     mes_ano = db.Column(db.String, nullable=False, primary_key=True)
     cupom_vendedora = db.Column(db.String, nullable=False, primary_key=True)
+    funcao = db.Column(db.String, nullable=False)
     total_pago = db.Column(db.Numeric, nullable=False)
     total_frete = db.Column(db.Numeric, nullable=False)
     total_comissional = db.Column(db.Numeric, nullable=False)
@@ -36,13 +37,14 @@ class Closing(db.Model):
     dt_insert = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
-    def __init__(self, mes, ano, mes_ano, cupom_vendedora, total_pago, total_frete, total_comissional, meta_atingida, 
+    def __init__(self, mes, ano, mes_ano, cupom_vendedora,funcao, total_pago, total_frete, total_comissional, meta_atingida, 
                  porcentagem_meta, valor_comissao, premiacao_meta, qtd_reconquista, vlr_reconquista, vlr_total_reco, 
                  qtd_repagar, vlr_recon_mes_ant, vlr_total_recon_mes_ant, premiacao_reconquista, total_receber, dt_insert=None):
         self.mes = mes
         self.ano = ano
         self.mes_ano = mes_ano
         self.cupom_vendedora = cupom_vendedora
+        self.funcao=funcao
         self.total_pago = total_pago
         self.total_frete = total_frete
         self.total_comissional = total_comissional
@@ -66,6 +68,7 @@ class Closing(db.Model):
             'ano': self.ano,
             'mes_ano': self.mes_ano,
             'cupom_vendedora': self.cupom_vendedora,
+            'funcao': self.funcao,
             'total_pago': self.total_pago,
             'total_frete': self.total_frete,
             'total_comissional': self.total_comissional,

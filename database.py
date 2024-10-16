@@ -31,12 +31,30 @@ def create_app():
     # Configuração do banco de dados PostgreSQL
     app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{postgres_user}:{postgres_password}@{postgres_host}/{postgres_db}'
     
+    # Configuração do banco de dados Oracle
+    oracle_uri = f'oracle+cx_oracle://{oracle_user}:{oracle_password}@{oracle_host}'
+    app.config['SQLALCHEMY_BINDS'] = {
+        'oracle': oracle_uri
+    }
+    
     db.init_app(app)
 
     return app, db
 
+
+
+
+
+
 def connect_to_oracle():
-    return cx_Oracle.connect(oracle_user, oracle_password, oracle_host)
+    """Conecta ao banco de dados Oracle."""
+    try:
+        connection = cx_Oracle.connect(oracle_user, oracle_password, oracle_host)
+        print("Conexão ao Oracle realizada com sucesso.")
+        return connection
+    except cx_Oracle.DatabaseError as e:
+        print(f"Erro ao conectar ao Oracle: {e}")
+        raise
 
 def connect_to_oracle_loja():
     return cx_Oracle.connect(oracle_user_loja, oracle_password_loja, oracle_host_loja)
