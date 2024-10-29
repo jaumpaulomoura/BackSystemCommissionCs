@@ -46,7 +46,7 @@ def consultar_meta():
                 'time': colaborador.time if colaborador else None
             })
 
-        print(results_col)
+        # print(results_col)
 
         response = jsonify(results_col)
         response.headers.add("Access-Control-Allow-Origin", "*")

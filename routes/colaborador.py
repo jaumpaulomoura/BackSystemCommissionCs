@@ -95,6 +95,7 @@ def delete_colaborador():
     except Exception as e:
         print(f"Erro ao deletar colaborador: {e}")
         return jsonify({'error': 'Erro ao deletar colaborador'}), 500
+    
 
 
 @colaborador_bp.route('/colaborador/<string:cupom>', methods=['PUT'])

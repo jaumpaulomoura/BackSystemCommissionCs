@@ -25,7 +25,7 @@ colaborador_alias = aliased(Colaborador)
 @jwt_required()
 def get_orders_by_day():
     current_user = get_jwt_identity()
-    print(f'Current user: {current_user}') 
+    # print(f'Current user: {current_user}') 
     cupom_vendedora = request.args.get('cupom_vendedora')
     team_name = request.args.get('team_name')
     month = request.args.get('month')
@@ -130,8 +130,43 @@ def get_orders_by_day():
                 .group_by(VwcsEcomPedidosJp.cupom_vendedora, func.to_char(VwcsEcomPedidosJp.data_submissao, 'YYYY-MM-DD'),colaborador_alias.nome)
                 .all()
             )
+            
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+    else:
+            
+            results = (
+                db.session.query(
+                    VwcsEcomPedidosJp.cupom_vendedora,
+                    func.to_char(VwcsEcomPedidosJp.data_submissao, 'YYYY-MM-DD').label('day'),
+                     (
+                        func.sum(
+                            cast(
+                                func.regexp_replace(VwcsEcomPedidosJp.valor_pago, ',', '.', 'g'),
+                                Numeric
+                            )
+                        ) - func.sum(
+                            cast(
+                                func.regexp_replace(VwcsEcomPedidosJp.valor_frete, ',', '.', 'g'),
+                                Numeric
+                            )
+                        )
+                    ).label('total_valor_bruto'),
+                     colaborador_alias.nome.label('nome')
+                     
+                )
+                .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
+                .filter(
+                    and_(
+                        VwcsEcomPedidosJp.data_submissao >= start_date_utc,
+                        VwcsEcomPedidosJp.data_submissao < end_date_utc,
+                        # VwcsEcomPedidosJp.cupom_vendedora.in_(cupons),
+                        VwcsEcomPedidosJp.status == 'APROVADO'
+                    )
+                )
+                .group_by(VwcsEcomPedidosJp.cupom_vendedora, func.to_char(VwcsEcomPedidosJp.data_submissao, 'YYYY-MM-DD'),colaborador_alias.nome)
+                .all()
+            )
 
     # Format the response data
     response_data = [
@@ -254,6 +289,38 @@ def get_orders_by_month():
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+    else:
+        results = (
+                db.session.query(
+                    VwcsEcomPedidosJp.cupom_vendedora,
+                    func.to_char(VwcsEcomPedidosJp.data_submissao, 'YYYY-MM').label('month_year'),
+                     (
+                        func.sum(
+                            cast(
+                                func.regexp_replace(VwcsEcomPedidosJp.valor_pago, ',', '.', 'g'),
+                                Numeric
+                            )
+                        ) - func.sum(
+                            cast(
+                                func.regexp_replace(VwcsEcomPedidosJp.valor_frete, ',', '.', 'g'),
+                                Numeric
+                            )
+                        )
+                    ).label('total_valor_bruto'),
+                     colaborador_alias.nome.label('nome')
+                )
+                .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
+                .filter(
+                    and_(
+                        VwcsEcomPedidosJp.data_submissao >= start_date_utc,
+                        VwcsEcomPedidosJp.data_submissao < end_date_utc,
+                        # VwcsEcomPedidosJp.cupom_vendedora.in_(cupons),
+                        VwcsEcomPedidosJp.status == 'APROVADO'
+                    )
+                )
+                .group_by(VwcsEcomPedidosJp.cupom_vendedora, func.to_char(VwcsEcomPedidosJp.data_submissao, 'YYYY-MM'),colaborador_alias.nome)
+                .all()
+            )
 
     # Format the response data
     response_data = [
