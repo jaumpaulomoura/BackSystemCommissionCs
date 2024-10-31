@@ -457,6 +457,7 @@ def create_colaborador():
             vlr_total_recon_mes_ant = data.get('vlr_total_recon_mes_ant')
             premiacao_reconquista = data.get('premiacao_reconquista')
             total_receber = data.get('total_receber')
+            vlr_taxa_conversao= data.get('vlr_taxa_conversao')
             
             # Imprimir dados convertidos
             print(f"Mes: {mes}, Ano: {ano}")
@@ -501,7 +502,7 @@ def create_colaborador():
                 porcentagem_meta=porcentagem_meta, valor_comissao=valor_comissao, premiacao_meta=premiacao_meta,
                 qtd_reconquista=qtd_reconquista, vlr_reconquista=vlr_reconquista, vlr_total_reco=vlr_total_reco,
                 qtd_repagar=qtd_repagar, vlr_recon_mes_ant=vlr_recon_mes_ant, vlr_total_recon_mes_ant=vlr_total_recon_mes_ant,
-                premiacao_reconquista=premiacao_reconquista, total_receber=total_receber
+                premiacao_reconquista=premiacao_reconquista, total_receber=total_receber,vlr_taxa_conversao=vlr_taxa_conversao
             )
             
             # Imprimir novo registro

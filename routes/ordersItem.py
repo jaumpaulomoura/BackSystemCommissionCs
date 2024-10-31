@@ -1,15 +1,17 @@
 from collections import defaultdict
+from itertools import islice
 from flask import Blueprint, request, jsonify
 from sqlalchemy import Numeric, String, func
 from flask_jwt_extended import jwt_required
 from models import modelo
 from models.colaborador import Colaborador
-from models.modelo import CategoriaGestor, ClasItem, ClassGestor, ClassModelo, Colecao, Cor, CorGestor, GrupoGestor, Lancamento, Linha, Modelo, Montagem, SubClassifGestor
+from models.modelo import CategoriaGestor, ClasItem, ClassGestor, ClassModelo, ColVigente, Colecao, Cor, CorGestor, GrupoGestor, Lancamento, Linha, Modelo, Montagem, SubClassifGestor
 from models.ticket import Ticket
 from models.vwcsEcomItensPedidosJp import VwcsEcomItensPedidosJp
 from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
 from database import db
 from datetime import datetime,date, time
+from dateutil import parser
 import pytz
 
 ordersItem_bp = Blueprint('ordersItem_bp', __name__)
@@ -274,7 +276,8 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
         VwcsEcomItensPedidosJp.referencia.label("modelo"),
         VwcsEcomItensPedidosJp.tamanho,
         func.sum(VwcsEcomItensPedidosJp.quantidade).label("quantidade_total"),
-       func.sum(func.cast(func.replace(VwcsEcomItensPedidosJp.valor_pago, ',', '.'), Numeric)).label("valor_pago")
+       func.sum(func.cast(func.replace(VwcsEcomItensPedidosJp.valor_pago, ',', '.'), Numeric)).label("valor_pago"),
+       func.sum(func.cast(func.replace(VwcsEcomItensPedidosJp.valor_desconto, ',', '.'), Numeric)).label("valor_desconto")
     ).join(
         VwcsEcomItensPedidosJp, VwcsEcomPedidosJp.pedido == VwcsEcomItensPedidosJp.id_pedido
     ).filter(
@@ -326,6 +329,7 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
     non_approved_orders_query = db.session.query(
         # VwcsEcomPedidosJp.pedido,
         VwcsEcomPedidosJp.cupom_vendedora,
+        None,
         None,
         None,
         None,
@@ -382,6 +386,7 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
             'tamanho': order[2],
             'quantidade': order[3],
             'valorPago': order[4],
+            'valorDesconto': order[5],
         }
         results.append(order_dict)
 
@@ -445,7 +450,9 @@ def get_modelos(modelos):
                 func.trim(Linha.PC03DESCR).label('linha_desc'),
                 func.trim(ClasItem.PC16DESCR).label('ClasItemdesc'),
                
-                func.trim(Montagem.PCDODESCRI).label('montagem_desc')
+                func.trim(Montagem.PCDODESCRI).label('montagem_desc'),
+                func.trim(ColVigente.DT_INICIO).label('dt_incio_vigencia'),
+                func.trim(ColVigente.DT_FIM).label('dt_fim_vigencia'),
             ).outerjoin(
                 Cor, Modelo.PC13COR == Cor.PC10CODIGO
             ).outerjoin(
@@ -489,6 +496,10 @@ def get_modelos(modelos):
                 Montagem, 
                 (Modelo.PC13EMP08 == Montagem.PCDOCODEMP)&
                 (Modelo.PC13TIPMON == Montagem.PCDOCODIGO)
+            ).outerjoin(
+                ColVigente, 
+                (Modelo.PC13EMP08 == Colecao.PCAICODEMP) & 
+                (Modelo.PC13CODCOL == ColVigente.CODCOL)
             ).filter(
                 Modelo.PC13EMP08 == 61,
                 Modelo.PC13ANOPED==0,
@@ -584,7 +595,9 @@ def get_modelos(modelos):
                     'linha_desc': modelo.linha_desc,
                     'ClasItemdesc': modelo.ClasItemdesc,
                     'montagem_desc': modelo.montagem_desc,
-                    'path_foto': f"{base_url}{modelo.modelo}_1.jpg"
+                    'path_foto': f"{base_url}{modelo.modelo}_1.jpg",
+                    'dt_incio_vigencia': modelo.dt_incio_vigencia,
+                    'dt_fim_vigencia': modelo.dt_fim_vigencia,
                         }
      # Exemplo de mapeamento
      
@@ -613,29 +626,28 @@ def get_modelos(modelos):
             return {'message': 'Parâmetro modelo não fornecido'}
         
 
-from flask import jsonify, request
-from itertools import islice
+
 
 @ordersItem_bp.route('/ordersItem', methods=['GET'])
 def get_orders():
-    # Collect query parameters
+    # Coletar parâmetros de consulta
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
     cupom_vendedora = request.args.get('cupom_vendedora')
     time_colaborador = request.args.get('time')
 
-    # Display received parameters
+    # Exibir parâmetros recebidos
     print(f'Parâmetros recebidos: start_date={start_date}, end_date={end_date}, cupom_vendedora={cupom_vendedora}, time_colaborador={time_colaborador}')
 
-    # Obtain orders based on the provided parameters
+    # Obter pedidos com base nos parâmetros fornecidos
     results = get_ordersItem(start_date, end_date, cupom_vendedora, time_colaborador)
 
     if results and isinstance(results, list):
-        # Extract all unique model codes
+        # Extrair todos os códigos de modelo únicos
         modelos_codigos = list(set(order.get('modelo') for order in results if order.get('modelo')))
         print('modelos:', modelos_codigos)
 
-        # Function to split the list into chunks of up to 1000
+        # Função para dividir a lista em pedaços de até 1000
         def chunked_list(iterable, size):
             iterator = iter(iterable)
             for first in iterator:
@@ -643,22 +655,51 @@ def get_orders():
 
         detalhes_modelos = {}
         for chunk in chunked_list(modelos_codigos, 1000):
-            # For each chunk, call get_modelos and update the dictionary with details
+            # Para cada pedaço, chamar get_modelos e atualizar o dicionário com os detalhes
             detalhes_modelos.update(get_modelos(chunk))
 
         print('Detalhes dos modelos obtidos:', detalhes_modelos)
 
-        # Associate model details with each order
+        # Associar detalhes do modelo a cada pedido e verificar validade dentro da vigência
         for order in results:
             modelo_codigo = order.get('modelo')
             if modelo_codigo:
                 modelo_detalhes = detalhes_modelos.get(modelo_codigo)
                 if modelo_detalhes:
-                    order.update(modelo_detalhes)
+                    # Converter a data de submissão em datetime offset-aware
+                    try:
+                        data_submissao = parser.isoparse(order['data_submissao'])  # Converte para offset-aware
+                        
+                        # Define o fuso horário desejado (exemplo: UTC)
+                        tz = pytz.timezone('UTC')  # Ajuste o fuso horário conforme necessário
+                        
+                        # Verificar se as datas de vigência estão disponíveis
+                        dt_inicio_vigencia_str = modelo_detalhes.get('dt_incio_vigencia')
+                        dt_fim_vigencia_str = modelo_detalhes.get('dt_fim_vigencia')
+
+                        if dt_inicio_vigencia_str and dt_fim_vigencia_str:
+                            # Converter as datas de vigência para offset-aware
+                            dt_inicio_vigencia = datetime.strptime(dt_inicio_vigencia_str, '%d/%m/%y').replace(tzinfo=tz)
+                            dt_fim_vigencia = datetime.strptime(dt_fim_vigencia_str, '%d/%m/%y').replace(tzinfo=tz)
+                            
+                            # Verificar se a data do pedido está dentro do período de vigência
+                            if dt_inicio_vigencia <= data_submissao <= dt_fim_vigencia:
+                                order['vigencia_status'] = 'Pedido dentro da vigência'
+                            else:
+                                order['vigencia_status'] = 'Pedido fora da vigência'
+                        else:
+                            order['vigencia_status'] = 'Datas de vigência não disponíveis'
+                        
+                        # Atualizar o pedido com os detalhes do modelo
+                        order.update(modelo_detalhes)
+
+                    except ValueError as e:
+                        order['vigencia_status'] = 'Erro ao processar datas'
+                        print(f'Erro ao converter data para o modelo {modelo_codigo}: {e}')
                 else:
                     order['message'] = 'Modelo não encontrado'
 
-    # Return the list of orders with their respective model details
+    # Retornar a lista de pedidos com seus respectivos detalhes do modelo e status de vigência
     return jsonify(results), 200
 
 
@@ -727,6 +768,8 @@ def get_modelo():
                 func.trim(Linha.PC03DESCR).label('linha_desc'),
                 func.trim(ClasItem.PC16DESCR).label('ClasItemdesc'),
                 func.trim(Montagem.PCDODESCRI).label('montagem_desc'),
+                func.trim(ColVigente.DT_INICIO).label('dt_incio_vigencia'),
+                func.trim(ColVigente.DT_FIM).label('dt_fim_vigencia'),
             ).outerjoin(
                 Cor, Modelo.PC13COR == Cor.PC10CODIGO
             ).outerjoin(
@@ -770,6 +813,10 @@ def get_modelo():
                 Montagem, 
                 (Modelo.PC13EMP08 == Montagem.PCDOCODEMP)&
                 (Modelo.PC13TIPMON == Montagem.PCDOCODIGO)
+            ).outerjoin(
+                ColVigente, 
+                (Modelo.PC13EMP08 == Colecao.PCAICODEMP) & 
+                (Modelo.PC13CODCOL == ColVigente.CODCOL)
             ).filter(
                 Modelo.PC13EMP08 == 61,
                 func.trim(Modelo.PC13CODIGO) == modelo_param.strip()
@@ -819,6 +866,8 @@ def get_modelo():
                     'linha_desc': modelo.linha_desc,
                     'ClasItemdesc': modelo.ClasItemdesc,
                     'montagem_desc': modelo.montagem_desc,
+                    'dt_incio_vigencia': modelo.dt_incio_vigencia,
+                    'dt_fim_vigencia': modelo.dt_fim_vigencia,
                         }
                 return jsonify(modelo_dict), 200
             else:

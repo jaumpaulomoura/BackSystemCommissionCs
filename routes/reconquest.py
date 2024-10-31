@@ -452,10 +452,10 @@ def get_summary_summarys():
     # Organizar os pedidos por `cupom_vendedora`
     orders_by_cupom = {}
     for order in all_orders:
-        nome = order['nome']
-        if nome not in orders_by_cupom:
-            orders_by_cupom[nome] = []
-        orders_by_cupom[nome].append(order)
+        cupom_vendedora = order['cupom_vendedora']
+        if cupom_vendedora not in orders_by_cupom:
+            orders_by_cupom[cupom_vendedora] = []
+        orders_by_cupom[cupom_vendedora].append(order)
     
     # Calcular as contagens para cada cupom
     response = calculate_counts_by_cupom(orders_by_cupom)

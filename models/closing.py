@@ -33,13 +33,14 @@ class Closing(db.Model):
     vlr_recon_mes_ant = db.Column(db.Numeric, nullable=True)
     vlr_total_recon_mes_ant = db.Column(db.Numeric, nullable=True)
     premiacao_reconquista = db.Column(db.Numeric, nullable=True)
+    vlr_taxa_conversao = db.Column(db.Numeric, nullable=False)
     total_receber = db.Column(db.Numeric, nullable=False)
     dt_insert = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
     def __init__(self, mes, ano, mes_ano, cupom_vendedora,funcao, total_pago, total_frete, total_comissional, meta_atingida, 
                  porcentagem_meta, valor_comissao, premiacao_meta, qtd_reconquista, vlr_reconquista, vlr_total_reco, 
-                 qtd_repagar, vlr_recon_mes_ant, vlr_total_recon_mes_ant, premiacao_reconquista, total_receber, dt_insert=None):
+                 qtd_repagar, vlr_recon_mes_ant, vlr_total_recon_mes_ant, premiacao_reconquista,vlr_taxa_conversao, total_receber, dt_insert=None):
         self.mes = mes
         self.ano = ano
         self.mes_ano = mes_ano
@@ -60,6 +61,7 @@ class Closing(db.Model):
         self.vlr_total_recon_mes_ant = vlr_total_recon_mes_ant
         self.premiacao_reconquista = premiacao_reconquista
         self.total_receber = total_receber
+        self.vlr_taxa_conversao=vlr_taxa_conversao
         self.dt_insert = dt_insert if dt_insert is not None else datetime.utcnow().date()
 
     def to_dict(self):
@@ -83,6 +85,7 @@ class Closing(db.Model):
             'vlr_recon_mes_ant': self.vlr_recon_mes_ant,
             'vlr_total_recon_mes_ant': self.vlr_total_recon_mes_ant,
             'premiacao_reconquista': self.premiacao_reconquista,
+            'vlr_taxa_conversao':self.vlr_taxa_conversao,
             'total_receber': self.total_receber,
             'dt_insert': self.dt_insert.isoformat() if self.dt_insert else None,
         }

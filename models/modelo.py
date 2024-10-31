@@ -236,7 +236,25 @@ class Montagem(db.Model):
             'codMontagem': self.PCDOCODIGO,
             'descMontagem': self.PCDODESCRI
         }
-        
+class ColVigente(db.Model):
+    __tablename__ = 'TB_COL_VIGENTE'
+    __bind_key__ = 'oracle'
+    
+    CODCOL = db.Column('CODCOL', db.String(50), primary_key=True)
+    DT_INICIO = db.Column('DT_INICIO', db.Date)
+    DT_FIM = db.Column('DT_FIM', db.Date)
+
+    def __init__(self, CODCOL, DT_INICIO, DT_FIM):
+        self.CODCOL = CODCOL
+        self.DT_INICIO = DT_INICIO
+        self.DT_FIM = DT_FIM
+
+    def to_dict(self):
+        return {
+            'empresa': self.CODCOL,
+            'codLan': self.DT_INICIO,
+            'descLan': self.DT_FIM
+        }
         
 class Modelo(db.Model):
     __tablename__ = 'PC13T'
