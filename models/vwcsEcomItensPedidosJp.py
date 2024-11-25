@@ -5,14 +5,14 @@ class VwcsEcomItensPedidosJp(db.Model):
     __tablename__ = 'VWCS_ECOM_ITENSPEDIDOS_SISTEMA'
 
     id_pedido = db.Column(db.String(255), db.ForeignKey('VWCS_ECOM_PEDIDOS.pedido'), primary_key=True)
-    referencia = db.Column(db.String)  # Correspondente a character varying
-    tamanho = db.Column(db.String)      # Correspondente a character varying
-    quantidade = db.Column(db.Integer)  # Correspondente a integer
-    valor_venda_unitario = db.Column(db.Text)    # Use Numeric para valores monetários
-    valor_desconto = db.Column(db.Text)         # Use Numeric para valores monetários
-    valor_pago = db.Column(db.Text)           # Use Numeric para valores monetários
-    link = db.Column(db.Text)                   # Correspondente a text
-    nome_site = db.Column(db.String(255))       # Correspondente a character varying
+    referencia = db.Column(db.String)  
+    tamanho = db.Column(db.String)      
+    quantidade = db.Column(db.Integer)  
+    valor_venda_unitario = db.Column(db.Text)    
+    valor_desconto = db.Column(db.Text)         
+    valor_pago = db.Column(db.Text)           
+    link = db.Column(db.Text)                   
+    nome_site = db.Column(db.String(255))       
 
     def __init__(self, id_pedido, referencia, tamanho, quantidade, valor_venda_unitario, valor_desconto, valor_pago, link, nome_site):
         self.id_pedido = id_pedido

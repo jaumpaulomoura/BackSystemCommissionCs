@@ -3,7 +3,6 @@ from flask import Blueprint, request, jsonify, session
 import pytz
 from sqlalchemy import Numeric, and_, cast, func
 from flask_jwt_extended import jwt_required
-# from models import Colaborador, Meta, PremiacaoMeta, VwcsEcomPedidosJp, db, Closing
 
 from models.colaborador import Colaborador
 from models.meta import Meta
@@ -24,23 +23,22 @@ closing_bp = Blueprint('closing_bp', __name__)
 def get_closing():
     start_time = time.time()
 
-    # Retrieve the query parameters
+
     mes_ano = request.args.get('mes_ano')
     cupom_vendedora = request.args.get('cupomvendedora')
     time_colaborador = request.args.get('time')
 
     try:
-        # Initialize the query with a join between Closing and Colaborador
         query = (
             db.session.query(
                 Closing,
-                Colaborador.time.label('colaborador_time'),  # Renomeia o campo para evitar conflitos
+                Colaborador.time.label('colaborador_time'),  
                 Colaborador.nome
             )
             .join(Colaborador, Colaborador.cupom == Closing.cupom_vendedora)
         )
         
-        # Apply filters based on parameters
+        
         if cupom_vendedora:
             query = query.filter(Closing.cupom_vendedora == cupom_vendedora)
         
@@ -50,24 +48,21 @@ def get_closing():
         if mes_ano:
             query = query.filter(Closing.mes_ano == mes_ano)
         
-        # Execute the query
         results = query.all()
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    # Convert the query result to a list of dictionaries
     formatted_results = []
     for closing, colaborador_time, nome in results:
         closing_dict = closing.to_dict()
-        closing_dict['time'] = colaborador_time  # Usa o nome atualizado da label
+        closing_dict['time'] = colaborador_time 
         closing_dict['nome'] = nome
         formatted_results.append(closing_dict)
 
     elapsed_time = time.time() - start_time
     print(f"Tempo de execução: {elapsed_time:.4f} segundos")
 
-    # Return the results as a JSON response
     return jsonify(formatted_results) if formatted_results else jsonify([])
 
 
@@ -79,7 +74,6 @@ def get_closing_grouped():
     start_time = time.time()
     time_param = request.args.get('time')
     try:
-        # Montar a consulta
         query = db.session.query(
             Closing.mes,
             Closing.ano,
@@ -93,7 +87,7 @@ def get_closing_grouped():
             func.sum(Closing.total_receber).label('total_receber'),
         ).join(Colaborador, Colaborador.cupom == Closing.cupom_vendedora)
 
-        # Aplicar filtro por tempo se o parâmetro estiver presente
+       
         if time_param:
             query = query.filter(Colaborador.time == time_param)
 
@@ -108,7 +102,7 @@ def get_closing_grouped():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    # Convert the list of grouped results to a list of dictionaries
+   
     results = [
         {
             'mes': closing.mes,
@@ -128,10 +122,9 @@ def get_closing_grouped():
     elapsed_time = time.time() - start_time
     print(f"Tempo de execução: {elapsed_time:.4f} segundos")
 
-    # Return the grouped results as a JSON response
+    
     return jsonify(results) if results else jsonify([])
 
-# Define o fuso horário local
 local_tz = pytz.timezone('America/Sao_Paulo')
 
 def ajustar_para_fuso_horario_local(data_utc):
@@ -140,7 +133,7 @@ def ajustar_para_fuso_horario_local(data_utc):
     """
     if data_utc is None:
         return None
-    # Converte do UTC para o fuso horário local
+
     return data_utc.astimezone(local_tz)
 
 
@@ -182,10 +175,9 @@ def get_orders():
     ).distinct()
 
 
-    # Filtro por datas
     if start_date_str:
         try:
-            # Verifica e corrige a data de início
+            
             start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
             start_date_utc = start_date_local.astimezone(pytz.utc)
             approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
@@ -194,14 +186,13 @@ def get_orders():
 
     if end_date_str:
         try:
-            # Verifica e corrige a data de fim
+           
             end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
             end_date_utc = end_date_local.astimezone(pytz.utc)
             approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
         except ValueError as e:
             return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
-    # Filtro por cupom_vendedora ou time_colaborador
     if cupom_vendedora:
         approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
     elif time_colaborador:
@@ -210,7 +201,6 @@ def get_orders():
         if cupoms:
             approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
         else:
-            # Se não houver colaboradores encontrados para o time dado, retorna resultado vazio
             return jsonify([])
    
    
@@ -244,7 +234,6 @@ def get_orders():
     
     if start_date_str:
             try:
-                # Verifica e corrige a data de início
                 start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
                 start_date_utc = start_date_local.astimezone(pytz.utc)
                 non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
@@ -253,14 +242,12 @@ def get_orders():
 
     if end_date_str:
             try:
-                # Verifica e corrige a data de fim
                 end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
                 end_date_utc = end_date_local.astimezone(pytz.utc)
                 non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
             except ValueError as e:
                 return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
-        # Filtro por cupom_vendedora ou time_colaborador
     if cupom_vendedora:
         non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
     elif time_colaborador:
@@ -269,11 +256,27 @@ def get_orders():
             if cupoms:
                 non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
             else:
-                # Se não houver colaboradores encontrados para o time dado, retorna resultado vazio
                 return jsonify([])
     
+    ped = db.session.query(
+        VwcsEcomPedidosJp,
+        Colaborador.nome,
+        Colaborador.funcao,
+        Colaborador.time,
+        Colaborador.dtadmissao,
+        Colaborador.dtdemissao
+    ).outerjoin(
+        Colaborador, and_(
+            VwcsEcomPedidosJp.cupom_vendedora == Colaborador.cupom,
+            Colaborador.dtadmissao <= VwcsEcomPedidosJp.data_submissao,
+            Colaborador.dtdemissao >= VwcsEcomPedidosJp.data_submissao
+        )
+    ).filter(
+        VwcsEcomPedidosJp.pedido == 'o54607571'
+    ).distinct()
    
-    query = approved_orders_query.union_all(non_approved_orders_query)
+
+    query = approved_orders_query.union_all(non_approved_orders_query).union_all(ped)
 
 
 
@@ -300,7 +303,7 @@ def get_orders():
         return jsonify({'error': str(e)}), 500
 
     results = []
-    gerentes_processados = set()  # Para rastrear gerentes já processados
+    gerentes_processados = set() 
     
     for data in grouped_data:
         total_comissao = (
@@ -308,19 +311,16 @@ def get_orders():
             (float(data.total_valor_frete) if data.total_valor_frete is not None else 0.0)
         )
 
-        # Processa o mês e o ano
         mes = data.min_date.month if data.min_date else 0
         ano = data.min_date.year if data.min_date else 0
         mes_formatado = f"{mes:02d}"
         mes_ano = f"{mes_formatado}-{ano}"
 
-        # Inicializa as variáveis
         selected_meta = 'Não tem meta cadastrada'
         porcentagem = 0
         valor_meta = 0
         premiacao_meta = 0 
 
-        # Busca a meta correspondente
         metas = (
             db.session.query(Meta)
             .filter(
@@ -331,7 +331,6 @@ def get_orders():
             .all()
         )
 
-        # Verifica qual meta se aplica
         for meta in metas:
             if total_comissao >= meta.valor:
                 selected_meta = meta.meta
@@ -339,13 +338,11 @@ def get_orders():
                 valor_meta = meta.valor
                 break
 
-        # Busca o colaborador
         colaborador = db.session.query(Colaborador).filter(
             func.concat(Colaborador.cupom, '-', Colaborador.nome) == data.id,
         ).first()
 
         if colaborador:
-            # Busca a premiação correspondente
             premiacao = db.session.query(PremiacaoMeta).filter(
                 PremiacaoMeta.descricao == selected_meta,
                 PremiacaoMeta.time == colaborador.time
@@ -356,7 +353,6 @@ def get_orders():
             else:
                 premiacao_meta = 0
         
-        # Adiciona os resultados do colaborador
         results.append({
             'cupom_vendedora': data.cupom_vendedora,
             'nome': data.nome,
@@ -373,32 +369,7 @@ def get_orders():
         })
 
         
-        # if colaborador:
-        #     # Busca o primeiro colaborador com o mesmo time
-        #     primeiro_colaborador = db.session.query(Colaborador).filter(
-        #         Colaborador.time == colaborador.time
-        #     ).first()
-        #     print(primeiro_colaborador)
-        #     # Verifica se foi encontrado um colaborador e se ele é um Gerente
-        #     if primeiro_colaborador and primeiro_colaborador.funcao == 'Gerente':
-        #         # Adiciona o gerente ao conjunto de gerentes processados
-        #         if primeiro_colaborador.nome not in gerentes_processados:
-        #             gerentes_processados.add(primeiro_colaborador.nome)
-
-        #     # Adiciona o resultado do gerente ao array
-        #             results.append({
-        #                 'cupom_vendedora': primeiro_colaborador.cupom,
-        #                 'nome': primeiro_colaborador.nome,
-        #                 'mes': mes,
-        #                 'ano': ano,
-        #                 'total_valor_pago': 0.0,  # Sem pagamentos diretos
-        #                 'total_valor_frete': 0.0,  # Sem frete direto
-        #                 'total_comissional': 0.0,  # Sem comissão direta
-        #                 'meta': 'Não aplica',  # Meta não aplicável
-        #                 'porcentagem': 0,  # Sem porcentagem específica
-        #                 'premiacao_meta': 0,  # Sem premiação
-        #                 'Valor_comisao': 0  # Sem comissão direta
-        #             })
+       
 
     elapsed_time = time.time() - start_time
     print(f"Tempo de execução: {elapsed_time:.4f} segundos")
@@ -434,7 +405,6 @@ def create_colaborador():
             if not isinstance(data, dict):
                 return jsonify({'error': 'Os itens da lista devem ser dicionários.'}), 400
             
-            # Imprimir dados recebidos
             print(f"Dados recebidos: {data}")
 
             mes = data.get('mes')
@@ -459,20 +429,15 @@ def create_colaborador():
             total_receber = data.get('total_receber')
             vlr_taxa_conversao= data.get('vlr_taxa_conversao')
             
-            # Imprimir dados convertidos
             print(f"Mes: {mes}, Ano: {ano}")
 
-            # Certificar-se de que 'mes' e 'ano' são tratados corretamente
             if isinstance(mes, int):
                 mes = str(mes)
             if isinstance(ano, int):
                 ano = str(ano)
-
-            # Imprimir dados convertidos
             print(f"Mes convertido: {mes}, Ano convertido: {ano}")
 
-            # Verificar duplicidade
-            # Verificar duplicidade baseada em cupom_vendedora, mes e ano
+           
             existing_closing = Closing.query.filter(
                 (Closing.cupom_vendedora == cupom_vendedora) &
                 (Closing.mes == mes) &
@@ -480,7 +445,6 @@ def create_colaborador():
             ).all()
 
 
-            # Imprimir registros existentes
             print(f"Registros existentes: {existing_closing}")
 
             if existing_closing:
@@ -505,7 +469,6 @@ def create_colaborador():
                 premiacao_reconquista=premiacao_reconquista, total_receber=total_receber,vlr_taxa_conversao=vlr_taxa_conversao
             )
             
-            # Imprimir novo registro
             print(f"Novo registro: {new_closing}")
 
             db.session.add(new_closing)

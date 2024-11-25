@@ -19,13 +19,12 @@ def consultar_meta():
         time_colaborador = request.args.get('time')
         colaborador_alias = aliased(Colaborador)
 
-        # Inicializa a consulta com outer join
         query = db.session.query(Meta, colaborador_alias).outerjoin(
             colaborador_alias,
-            (Meta.cupom == colaborador_alias.cupom) & (Meta.nome == colaborador_alias.nome)  # Amarra pelo cupom e nome
+            (Meta.cupom == colaborador_alias.cupom) & (Meta.nome == colaborador_alias.nome) 
         )
 
-        # Aplicar filtros somente depois da junção
+       
         if cupom_vendedora:
             query = query.filter(Meta.cupom == cupom_vendedora)
         if time_colaborador:
@@ -46,7 +45,6 @@ def consultar_meta():
                 'time': colaborador.time if colaborador else None
             })
 
-        # print(results_col)
 
         response = jsonify(results_col)
         response.headers.add("Access-Control-Allow-Origin", "*")
@@ -67,7 +65,7 @@ def create_meta():
 
     errors = []
     success_messages = []
-    duplicate_error = False  # Flag para erro de duplicação
+    duplicate_error = False
 
     for item in data:
         cupom = item.get('cupom')
@@ -90,8 +88,8 @@ def create_meta():
             ).first()
 
             if existing_meta:
-                errors = ['A combinação já existe']  # Substitua a lista por uma única mensagem
-                break  # Para sair do loop após encontrar a duplicidade
+                errors = ['A combinação já existe']  
+                break 
 
 
 
@@ -109,14 +107,14 @@ def create_meta():
         db.session.rollback()
         return jsonify({'error': 'Erro ao salvar alterações no banco de dados: ' + str(e)}), 500
 
-    # Se houver erros, retornar 207 com erros
+
     if errors:
         return jsonify({
             'success': success_messages,
             'errors': errors
-        }), 207  # Multi-Status, indicando que algumas operações falharam
+        }), 207 
     else:
-        return jsonify({'success': success_messages}), 201  # Created
+        return jsonify({'success': success_messages}), 201  
 
 @meta_bp.route('/meta', methods=['DELETE'], strict_slashes=False)
 @jwt_required()

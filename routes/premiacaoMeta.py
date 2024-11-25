@@ -19,29 +19,22 @@ premiacaoMeta_bp = Blueprint('premiacaoMeta_bp', __name__)
 @jwt_required()
 def consultar_premiacaoMeta():
     try:
-        # Obter o valor do parâmetro de consulta 'time', se presente
         time_colaborador = request.args.get('time')
         
-        # Iniciar a consulta na tabela PremiacaoMeta
         query = PremiacaoMeta.query
         
-        # Se o parâmetro 'time' estiver presente, aplicar filtro
         if time_colaborador:
             query = query.filter_by(time=time_colaborador)
         
-        # Executar a consulta
         premiacaoMetaes = query.all()
         
-        # Converter os resultados para dicionários
         results_col = [premiacaoMeta.to_dict() for premiacaoMeta in premiacaoMetaes]
         
-        # Criar a resposta JSON
         response = jsonify(results_col)
         response.headers.add("Access-Control-Allow-Origin", "*")
         return response
     
     except Exception as e:
-        # Exibir erro no console e retornar resposta de erro
         print(f"Erro na consulta SQL: {e}")
         return jsonify({'error': 'Erro na consulta SQL'}), 500
 
@@ -55,8 +48,6 @@ def create_premiacaoMeta():
     time = data.get('time')
     valor = data.get('valor')
     try:
-        # Verificar duplicidade
-        # Verificar duplicidade
         existing_premiacaoMeta = PremiacaoMeta.query.filter(
             (PremiacaoMeta.descricao == descricao) &
             (PremiacaoMeta.time == time) &
@@ -67,7 +58,6 @@ def create_premiacaoMeta():
         if existing_premiacaoMeta:
             return jsonify({'error': 'Cupom ou nome já existe'}), 409
 
-        # Inserir novo premiacaoMeta
         new_premiacaoMeta = PremiacaoMeta(descricao=descricao, time=time, valor=valor)
         db.session.add(new_premiacaoMeta)
         db.session.commit()

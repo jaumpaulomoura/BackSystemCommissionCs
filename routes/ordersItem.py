@@ -12,6 +12,8 @@ from models.vwcsEcomPedidosJp import VwcsEcomPedidosJp
 from database import db
 from datetime import datetime,date, time
 from dateutil import parser
+
+
 import pytz
 
 ordersItem_bp = Blueprint('ordersItem_bp', __name__)
@@ -46,18 +48,8 @@ def apply_date_filters(query, start_date_str, end_date_str, local_tz):
 
 def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborador):
     
-    print("Valores de entrada:", start_date_str, end_date_str, cupom_vendedora, time_colaborador)
-
-
-
-
-
-
-    # Configuração do fuso horário local
     local_tz = pytz.timezone('America/Sao_Paulo')
 
-    # Consulta base
-    # query = db.session.query(VwcsEcomPedidosJp).filter(VwcsEcomPedidosJp.status == 'APROVADO')
     subquery_aproved = db.session.query(VwcsEcomPedidosJp.pedido).join(
         Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
     ).filter(
@@ -97,10 +89,8 @@ def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborad
     VwcsEcomPedidosJp.pedido.notin_(subquery_aproved)
 )
 
-    # Filtro por datas
     if start_date_str:
         try:
-            # Verifica e corrige a data de início
             start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
             start_date_utc = start_date_local.astimezone(pytz.utc)
             approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
@@ -109,7 +99,6 @@ def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborad
 
     if end_date_str:
         try:
-            # Verifica e corrige a data de fim
             end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
             end_date_utc = end_date_local.astimezone(pytz.utc)
             approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
@@ -117,18 +106,13 @@ def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborad
             return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
     if cupom_vendedora:
-        # Use `in_` with a list to ensure proper filtering
         approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
     elif time_colaborador:
-        # Get all collaborators for the specified time
         colaboradores = Colaborador.query.filter_by(time=time_colaborador).all()
-        # Collect their coupons into a list
         cupoms = [colaborador.cupom for colaborador in colaboradores]
         if cupoms:
-            # Filter by the list of coupons
             approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
         else:
-            # Return an empty response if no collaborators found
             return jsonify([])
 
 
@@ -179,7 +163,6 @@ def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborad
     
     if start_date_str:
             try:
-                # Verifica e corrige a data de início
                 start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
                 start_date_utc = start_date_local.astimezone(pytz.utc)
                 non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
@@ -188,14 +171,12 @@ def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborad
 
     if end_date_str:
             try:
-                # Verifica e corrige a data de fim
                 end_date_local = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_tz)
                 end_date_utc = end_date_local.astimezone(pytz.utc)
                 non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
             except ValueError as e:
                 return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
-        # Filtro por cupom_vendedora ou time_colaborador
     if cupom_vendedora:
         non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
     elif time_colaborador:
@@ -213,8 +194,6 @@ def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborad
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    # Modificar a construção do resultado para incluir todos os campos e a diferença
-# Modificar a construção do resultado para incluir todos os campos e a diferença
     results = []
     for order in orders:
         order_dict = {
@@ -244,7 +223,6 @@ def get_ordersItem(start_date_str, end_date_str, cupom_vendedora, time_colaborad
             'nomeSite': order[23]
         }
 
-        # Converte valor_pago e valor_frete para float e calcula a diferença
         valor_pago = parse_currency(order_dict.get('valor_pago', ''))
         valor_frete = parse_currency(order_dict.get('valor_frete', ''))
 
@@ -271,7 +249,6 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
     from sqlalchemy import func
 
     approved_orders_query = db.session.query(
-        # VwcsEcomPedidosJp.pedido,
         VwcsEcomPedidosJp.cupom_vendedora,
         VwcsEcomItensPedidosJp.referencia.label("modelo"),
         VwcsEcomItensPedidosJp.tamanho,
@@ -284,14 +261,11 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
         VwcsEcomPedidosJp.status == 'APROVADO',
         VwcsEcomPedidosJp.pedido.notin_(subquery_aproved)
     ).group_by(
-        # VwcsEcomPedidosJp.pedido,
         VwcsEcomPedidosJp.cupom_vendedora,
         VwcsEcomItensPedidosJp.referencia,
         VwcsEcomItensPedidosJp.tamanho,
-        # VwcsEcomItensPedidosJp.valor_venda_unitario
     )
 
-    # Filtro por datas
     if start_date_str:
         try:
             start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
@@ -308,7 +282,6 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
         except ValueError as e:
             return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
-    # Filtro por cupom_vendedora ou time_colaborador
     if cupom_vendedora:
         approved_orders_query = approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
     elif time_colaborador:
@@ -327,7 +300,6 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
     ).subquery()
 
     non_approved_orders_query = db.session.query(
-        # VwcsEcomPedidosJp.pedido,
         VwcsEcomPedidosJp.cupom_vendedora,
         None,
         None,
@@ -341,7 +313,6 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
         VwcsEcomPedidosJp.pedido.in_(subquery_reaproved)
     )
 
-    # Filtro para pedidos não aprovados por datas
     if start_date_str:
         try:
             start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
@@ -358,7 +329,6 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
         except ValueError as e:
             return jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
-    # Filtro por cupom_vendedora ou time_colaborador para pedidos não aprovados
     if cupom_vendedora:
         non_approved_orders_query = non_approved_orders_query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
     elif time_colaborador:
@@ -369,7 +339,6 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
         else:
             return jsonify([])
 
-    # União das consultas
     union_query = approved_orders_query.union_all(non_approved_orders_query)
 
     try:
@@ -380,7 +349,6 @@ def get_ordersItemGroup(start_date_str, end_date_str, cupom_vendedora, time_cola
     results = []
     for order in orders:
         order_dict = {
-            # 'pedido': order[0],
             'cupom_vendedora': order[0],
             'modelo': order[1],
             'tamanho': order[2],
@@ -401,13 +369,12 @@ def get_modelos(modelos):
     if modelos:
         try:
             if isinstance(modelos, dict):
-                modelo_param = list(modelos.values())  # Extrai os valores do dicionário
+                modelo_param = list(modelos.values())  
             elif isinstance(modelos, list):
                 modelo_param = [str(m).strip() for m in modelos]
             else:
                 modelo_param = [str(modelos).strip()]
             
-            # Executa a consulta e armazena o resultado na variável `modelo`
             modelos_resultados  = db.session.query(
                
                 func.trim(Modelo.PC13CODIGO).label('modelo'),
@@ -503,11 +470,9 @@ def get_modelos(modelos):
             ).filter(
                 Modelo.PC13EMP08 == 61,
                 Modelo.PC13ANOPED==0,
-                func.trim(Modelo.PC13CODIGO).in_(modelo_param)  # Modificado para buscar em lista
+                func.trim(Modelo.PC13CODIGO).in_(modelo_param)  
             ).all()
-            # print("Tipo de modelos_resultados:", type(modelos_resultados))
-            # print("Conteúdo de modelos_resultados:", modelos_resultados)
-            # Verifica se `modelo` tem um resultado
+
             if modelos_resultados:
                 categoria_mapping = {
                         2: ('CS', 'CALCADOS'),
@@ -599,25 +564,21 @@ def get_modelos(modelos):
                     'dt_incio_vigencia': modelo.dt_incio_vigencia,
                     'dt_fim_vigencia': modelo.dt_fim_vigencia,
                         }
-     # Exemplo de mapeamento
      
                     categoria_info = categoria_mapping.get(int(modelo.codCategoriaGestor))
-                    # print(f"Tipo de codCategoriaGestor: {type(modelo.codCategoriaGestor)}")
-
+                    
                     if categoria_info:
-                        modelo_dict['catGestor_desc'] = categoria_info[1]  # Nome da categoria
-                        modelo_dict['marca'] = categoria_info[0]  # Subcategoria
+                        modelo_dict['catGestor_desc'] = categoria_info[1]  
+                        modelo_dict['marca'] = categoria_info[0] 
                     else:
-                        modelo_dict['catGestor_desc'] = 'Outros'  # Pode ser alterado conforme a necessidade
-                        modelo_dict['marca'] = 'Outros'  # Pode ser alterado conforme a necessidade
+                        modelo_dict['catGestor_desc'] = 'Outros'  
+                        modelo_dict['marca'] = 'Outros'  
 
 
                     modelos_dict[modelo.modelo] = modelo_dict
                         
-                # Verifica se modelos_dict tem resultados
                 if modelos_dict:
-                    # print('modelos_dict:', modelos_dict)  
-                    return modelos_dict  # Retorna o dicionário dos modelos encontrados
+                    return modelos_dict
                 else:
                     return {'message': 'Modelo não encontrado'}
         except Exception as e:
@@ -630,24 +591,18 @@ def get_modelos(modelos):
 
 @ordersItem_bp.route('/ordersItem', methods=['GET'])
 def get_orders():
-    # Coletar parâmetros de consulta
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
     cupom_vendedora = request.args.get('cupom_vendedora')
     time_colaborador = request.args.get('time')
 
-    # Exibir parâmetros recebidos
-    print(f'Parâmetros recebidos: start_date={start_date}, end_date={end_date}, cupom_vendedora={cupom_vendedora}, time_colaborador={time_colaborador}')
-
-    # Obter pedidos com base nos parâmetros fornecidos
+ 
     results = get_ordersItem(start_date, end_date, cupom_vendedora, time_colaborador)
 
     if results and isinstance(results, list):
-        # Extrair todos os códigos de modelo únicos
         modelos_codigos = list(set(order.get('modelo') for order in results if order.get('modelo')))
-        print('modelos:', modelos_codigos)
 
-        # Função para dividir a lista em pedaços de até 1000
+
         def chunked_list(iterable, size):
             iterator = iter(iterable)
             for first in iterator:
@@ -655,34 +610,27 @@ def get_orders():
 
         detalhes_modelos = {}
         for chunk in chunked_list(modelos_codigos, 1000):
-            # Para cada pedaço, chamar get_modelos e atualizar o dicionário com os detalhes
             detalhes_modelos.update(get_modelos(chunk))
 
-        print('Detalhes dos modelos obtidos:', detalhes_modelos)
 
-        # Associar detalhes do modelo a cada pedido e verificar validade dentro da vigência
+
         for order in results:
             modelo_codigo = order.get('modelo')
             if modelo_codigo:
                 modelo_detalhes = detalhes_modelos.get(modelo_codigo)
                 if modelo_detalhes:
-                    # Converter a data de submissão em datetime offset-aware
                     try:
-                        data_submissao = parser.isoparse(order['data_submissao'])  # Converte para offset-aware
+                        data_submissao = parser.isoparse(order['data_submissao'])
                         
-                        # Define o fuso horário desejado (exemplo: UTC)
-                        tz = pytz.timezone('UTC')  # Ajuste o fuso horário conforme necessário
+                        tz = pytz.timezone('UTC')
                         
-                        # Verificar se as datas de vigência estão disponíveis
                         dt_inicio_vigencia_str = modelo_detalhes.get('dt_incio_vigencia')
                         dt_fim_vigencia_str = modelo_detalhes.get('dt_fim_vigencia')
 
                         if dt_inicio_vigencia_str and dt_fim_vigencia_str:
-                            # Converter as datas de vigência para offset-aware
                             dt_inicio_vigencia = datetime.strptime(dt_inicio_vigencia_str, '%d/%m/%y').replace(tzinfo=tz)
                             dt_fim_vigencia = datetime.strptime(dt_fim_vigencia_str, '%d/%m/%y').replace(tzinfo=tz)
                             
-                            # Verificar se a data do pedido está dentro do período de vigência
                             if dt_inicio_vigencia <= data_submissao <= dt_fim_vigencia:
                                 order['vigencia_status'] = 'Pedido dentro da vigência'
                             else:
@@ -690,7 +638,6 @@ def get_orders():
                         else:
                             order['vigencia_status'] = 'Datas de vigência não disponíveis'
                         
-                        # Atualizar o pedido com os detalhes do modelo
                         order.update(modelo_detalhes)
 
                     except ValueError as e:
@@ -699,7 +646,6 @@ def get_orders():
                 else:
                     order['message'] = 'Modelo não encontrado'
 
-    # Retornar a lista de pedidos com seus respectivos detalhes do modelo e status de vigência
     return jsonify(results), 200
 
 
@@ -707,13 +653,131 @@ def get_orders():
 
 
 
+from flask import jsonify
+from collections import defaultdict
+
+@ordersItem_bp.route('/ordersItemVigente', methods=['GET']) 
+def get_orders_vigente():
+    start_date = request.args.get('startDate')
+    end_date = request.args.get('endDate')
+    cupom_vendedora = request.args.get('cupom_vendedora')
+    time_colaborador = request.args.get('time')
 
 
+    results = get_ordersItem(start_date, end_date, cupom_vendedora, time_colaborador)
+
+    if results and isinstance(results, list):
+        modelos_codigos = list(set(order.get('modelo') for order in results if order.get('modelo')))
+
+        def chunked_list(iterable, size):
+            iterator = iter(iterable)
+            for first in iterator:
+                yield [first] + list(islice(iterator, size - 1))
+
+        detalhes_modelos = {}
+        for chunk in chunked_list(modelos_codigos, 1000):
+            detalhes_modelos.update(get_modelos(chunk))
 
 
+        grouped_data = defaultdict(lambda: {
+            "vigencia_status": {"Pedido dentro da vigência": 0, "Pedido fora da vigência": 0},
+            "total_itens": 0,
+            "valorDesc": 0.0,
+            "valorPago": 0.0,
+            "valor_bruto": 0.0,
+            "valor_desconto": 0.0,
+            "valor_frete": 0.0,
+            "valor_pago": 0.0
+        })
+
+   
+        for order in results:
+            modelo_codigo = order.get('modelo')
+            if modelo_codigo:
+                modelo_detalhes = detalhes_modelos.get(modelo_codigo)
+                if modelo_detalhes:
+                    try:
+                        data_submissao = parser.isoparse(order['data_submissao'])
+                        tz = pytz.timezone('UTC')
+
+                        dt_inicio_vigencia_str = modelo_detalhes.get('dt_incio_vigencia')
+                        dt_fim_vigencia_str = modelo_detalhes.get('dt_fim_vigencia')
+
+                        if dt_inicio_vigencia_str and dt_fim_vigencia_str:
+                            dt_inicio_vigencia = datetime.strptime(dt_inicio_vigencia_str, '%d/%m/%y').replace(tzinfo=tz)
+                            dt_fim_vigencia = datetime.strptime(dt_fim_vigencia_str, '%d/%m/%y').replace(tzinfo=tz)
+
+                            if dt_inicio_vigencia <= data_submissao <= dt_fim_vigencia:
+                                order['vigencia_status'] = 'Pedido dentro da vigência'
+                            else:
+                                order['vigencia_status'] = 'Pedido fora da vigência'
+                        else:
+                            order['vigencia_status'] = 'Datas de vigência não disponíveis'
+
+                     
+                        order.update(modelo_detalhes)
+
+                    except ValueError as e:
+                        order['vigencia_status'] = 'Erro ao processar datas'
+                        print(f'Erro ao converter data para o modelo {modelo_codigo}: {e}')
+                else:
+                    order['vigencia_status'] = 'Modelo não encontrado'
+            else:
+                order['vigencia_status'] = 'Modelo não especificado'
+
+          
+            total_itens = order.get("total_itens", 0)  
+            cupom = order.get("cupom_vendedora")
+            if cupom:
+                vigencia_status = order.get("vigencia_status", "Desconhecido")
+                
+                if vigencia_status not in grouped_data[cupom]:
+                    grouped_data[cupom][vigencia_status] = {
+                        "vigencia_status": vigencia_status,
+                        "total_itens": 0,
+                        "valorDesc": 0.0,
+                        "valorPago": 0.0,
+                        "valor_bruto": 0.0,
+                        "valor_desconto": 0.0,
+                        "valor_frete": 0.0,
+                        "valor_pago": 0.0
+                    }
+                grouped_data[cupom][vigencia_status]["total_itens"] += total_itens
+
+                def safe_float(value):
+                    if value is None:
+                        return 0.0
+                    if isinstance(value, str):
+                        return float(value.replace(',', '.')) if value else 0.0
+                    return float(value)
+
+                grouped_data[cupom][vigencia_status]["valorDesc"] += safe_float(order.get("valorDesc"))
+                grouped_data[cupom][vigencia_status]["valorPago"] += safe_float(order.get("valorPago"))
+                grouped_data[cupom][vigencia_status]["valor_bruto"] += safe_float(order.get("valor_bruto"))
+                grouped_data[cupom][vigencia_status]["valor_desconto"] += safe_float(order.get("valor_desconto"))
+                grouped_data[cupom][vigencia_status]["valor_frete"] += safe_float(order.get("valor_frete"))
+                grouped_data[cupom][vigencia_status]["valor_pago"] += safe_float(order.get("valor_pago"))
+
+        aggregated_results = []
+        for cupom, data in grouped_data.items():
+            for vigencia_status, details in data.items():
+                if isinstance(details, dict) and details.get("total_itens", 0) > 0:
+                    aggregated_results.append({
+                        "cupom_vendedora": cupom,
+                        "vigencia_status": vigencia_status,
+                        "total_itens": details["total_itens"],
+                        "valorDesc": round(details["valorDesc"], 2),
+                        "valorPago": round(details["valorPago"], 2),
+                        "valor_bruto": round(details["valor_bruto"], 2),
+                        "valor_desconto": round(details["valor_desconto"], 2),
+                        "valor_frete": round(details["valor_frete"], 2),
+                        "valor_pago": round(details["valor_pago"], 2),
+                    })
+
+        return jsonify(aggregated_results), 200
 
 
-
+    return jsonify({"message": "Nenhum dado encontrado."}), 404
 
 
 
@@ -726,7 +790,6 @@ def get_modelo():
 
     try:
         if modelo_param:
-            # Executa a consulta e armazena o resultado na variável `modelo`
             modelo = db.session.query(
                 func.trim(Modelo.PC13CODIGO).label('modelo'),
                 func.trim(Modelo.PC13EMP08).label('empresa'),
@@ -822,9 +885,7 @@ def get_modelo():
                 func.trim(Modelo.PC13CODIGO) == modelo_param.strip()
             ).first()
 
-            # Verifica se `modelo` tem um resultado
             if modelo:
-                # Converte a tupla em um dicionário manualmente
                 modelo_dict = {
                     'modelo': modelo.modelo,
                     'empresa': modelo.empresa,
@@ -873,37 +934,26 @@ def get_modelo():
             else:
                 return jsonify({'message': 'Modelo não encontrado'}), 404
         else:
-            # Busca todos os modelos se `modelo_param` não foi fornecido
             modelos = db.session.query(Modelo).all()
             modelos_list = [modelo.to_dict() for modelo in modelos]
             return jsonify(modelos_list), 200
-    except Exception as e:
-        # Log para o erro e retorno de uma mensagem de erro genérica
-      
+    except Exception as e:      
         return jsonify({'message': 'Erro interno no servidor'}), 500
 
 
 
 @ordersItem_bp.route('/ordersItemGroup', methods=['GET'])
 def get_orders2():
-    # Collect query parameters
     start_date = request.args.get('startDate')
     end_date = request.args.get('endDate')
     cupom_vendedora = request.args.get('cupom_vendedora')
     time_colaborador = request.args.get('time')
 
-    # Display received parameters
-    # print(f'Parâmetros recebidos: start_date={start_date}, end_date={end_date}, cupom_vendedora={cupom_vendedora}, time_colaborador={time_colaborador}')
-
-    # Obtain orders based on the provided parameters
     results = get_ordersItemGroup(start_date, end_date, cupom_vendedora, time_colaborador)
 
     if results and isinstance(results, list):
-        # Extract all unique model codes
         modelos_codigos = list(set(order.get('modelo') for order in results if order.get('modelo')))
-        # print('modelos:', modelos_codigos)
 
-        # Function to split the list into chunks of up to 1000
         def chunked_list(iterable, size):
             iterator = iter(iterable)
             for first in iterator:
@@ -911,12 +961,7 @@ def get_orders2():
 
         detalhes_modelos = {}
         for chunk in chunked_list(modelos_codigos, 1000):
-            # For each chunk, call get_modelos and update the dictionary with details
             detalhes_modelos.update(get_modelos(chunk))
-
-        # print('Detalhes dos modelos obtidos:', detalhes_modelos)
-
-        # Associate model details with each order
         for order in results:
             modelo_codigo = order.get('modelo')
             if modelo_codigo:
@@ -926,6 +971,5 @@ def get_orders2():
                 else:
                     order['message'] = 'Modelo não encontrado'
 
-    # Return the list of orders with their respective model details
     return jsonify(results), 200
 

@@ -1,7 +1,5 @@
 from cgitb import text
 from flask import Blueprint, jsonify, request, abort
-# from models import Colaborador, Ticket
-# from database import db
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import and_, text
@@ -13,13 +11,12 @@ from database import db
 ticket_bp = Blueprint('ticket_bp', __name__)
 
 @ticket_bp.route('/ticket', methods=['GET'], strict_slashes=False)
-# @jwt_required()  # Ensure this is uncommented to protect the route
+# @jwt_required() 
 def consultar_ticket():
     try:
         cupom_vendedora = request.args.get('cupomvendedora')
         time_colaborador = request.args.get('time')
 
-        # Create an aliased reference for Colaborador if necessary
         query = db.session.query(Ticket, Colaborador.nome).outerjoin(
             Colaborador, 
             and_(
@@ -38,10 +35,8 @@ def consultar_ticket():
             cupoms = [colaborador.cupom for colaborador in colaboradores]
             query = query.filter(Ticket.cupomvendedora.in_(cupoms))
 
-        # Execute the query and get results
         tickets = query.all()
 
-        # Prepare the response including the collaborator's name
         results_col = []
         for ticket, nome in tickets:
             results_col.append({
@@ -54,7 +49,7 @@ def consultar_ticket():
                 'cupomvendedora': ticket.cupomvendedora,
                 'dateCreated': ticket.dateCreated.isoformat() if ticket.dateCreated else None,
                 'dateUpdated': ticket.dateUpdated.isoformat() if ticket.dateUpdated else None,
-                'nome': nome  # Add the collaborator's name here
+                'nome': nome 
             })
 
         response = jsonify(results_col)
@@ -62,7 +57,7 @@ def consultar_ticket():
         return response
 
     except Exception as e:
-        print(f"Error occurred: {str(e)}")  # Log the error for debugging
+        print(f"Error occurred: {str(e)}")  
         return jsonify({'error': 'Erro na consulta SQL', 'details': str(e)}), 500
 
 @ticket_bp.route('/ticket', methods=['POST'])
@@ -203,7 +198,7 @@ def update_status():
 
     try:
         sql = text(
-            "CALL vwcs_ecom_atualizar_pedido_status(:order_id, :novo_status)"
+            "CALL vwcs_ecom_atualizar_status_pedido_vendedora(:order_id, :novo_status)"
         )
 
         db.session.execute(sql, {'order_id': order_id, 'novo_status': novo_status})

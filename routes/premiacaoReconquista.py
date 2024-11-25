@@ -1,6 +1,5 @@
 from cgitb import text
 from flask import Blueprint, jsonify, request, abort
-# from models import Colaborador, PremiacaoReconquista
 from database import db
 from models.premiacaoReconquista import PremiacaoReconquista
 premiacaoReconquista_bp = Blueprint('premiacaoReconquista_bp', __name__)
@@ -14,29 +13,22 @@ from flask_jwt_extended import jwt_required
 @jwt_required()
 def consultar_premiacaoReconquista():
     try:
-        # Obter o valor do parâmetro de consulta 'time', se presente
         time_colaborador = request.args.get('time')
         
-        # Iniciar a consulta na tabela PremiacaoReconquista
         query = PremiacaoReconquista.query
         
-        # Se o parâmetro 'time' estiver presente, aplicar filtro
         if time_colaborador:
             query = query.filter_by(time=time_colaborador)
         
-        # Executar a consulta
         premiacaoReconquistaes = query.all()
         
-        # Converter os resultados para dicionários
         results_col = [premiacaoReconquista.to_dict() for premiacaoReconquista in premiacaoReconquistaes]
         
-        # Criar a resposta JSON
         response = jsonify(results_col)
         response.headers.add("Access-Control-Allow-Origin", "*")
         return response
     
     except Exception as e:
-        # Exibir erro no console e retornar resposta de erro
         print(f"Erro na consulta SQL: {e}")
         return jsonify({'error': 'Erro na consulta SQL'}), 500
 
@@ -52,7 +44,6 @@ def create_premiacaoReconquista():
     minimo = data.get('minimo')
     maximo = data.get('maximo')
     try:
-        # Verificar duplicidade
         existing_premiacaoReconquista = PremiacaoReconquista.query.filter(
             (PremiacaoReconquista.descricao == descricao) & (PremiacaoReconquista.time == time)
         ).first()
@@ -60,7 +51,6 @@ def create_premiacaoReconquista():
         if existing_premiacaoReconquista:
             return jsonify({'error': 'Cupom ou nome já existe'}), 409
 
-        # Inserir novo premiacaoReconquista
         new_premiacaoReconquista = PremiacaoReconquista(descricao=descricao, time=time, valor=valor,minimo=minimo,maximo=maximo)
         db.session.add(new_premiacaoReconquista)
         db.session.commit()
@@ -76,7 +66,6 @@ def delete_premiacaoReconquista():
     time = request.args.get('time')
     valor = request.args.get('valor')
 
-   # Print dos dados que estão chegando
     print(f"Dados recebidos: descricao={descricao}, time={time}, valor={valor}")
     try:
         query = PremiacaoReconquista.query

@@ -34,7 +34,7 @@ class SubmittedOrder(db.Model):
             'envio': self.get_shipping_method(),
             'idloja': self.get_store_id(),
             'site': self.get_site(),
-            'valor_bruto': self.get_raw_subtotal(),  # Aqui você está chamando o método
+            'valor_bruto': self.get_raw_subtotal(),  
             'valor_desconto': self.get_valor_desconto(),
             'valor_frete': self.get_valor_frete(),
             'valor_pago': self.get_valor_pago(),
@@ -90,85 +90,72 @@ class SubmittedOrder(db.Model):
         return state_map.get(self.state, self.state)
 
     def get_store_id(self):
-        # Verificar se a coluna cs_shipping contém 'storeId'
         if self.cs_shipping:
             shipping_info = self.cs_shipping.get('shipping', [])
             if shipping_info and len(shipping_info) > 0:
                 store_id = shipping_info[0].get('storeId', '')
-                # Ajustar a condição para verificar se o store_id não está vazio
                 if store_id:
                     return store_id
         
-        # Se cs_shipping não contém storeId ou está vazio, retornar cs_pickup_in_store
         if self.cs_pickup_in_store:
             return self.cs_pickup_in_store
         
         return None
 
     def get_coupon_code(self):
-        # Iterar sobre os itens de commerceItems e retornar o primeiro código de cupom encontrado
         commerce_items = self.occ_payload.get('order', {}).get('commerceItems', [])
         for item in commerce_items:
             price_info = item.get('priceInfo', {})
             order_discount_infos = price_info.get('orderDiscountInfos', [])
-            if order_discount_infos:  # Verifica se a lista não está vazia
+            if order_discount_infos:
                 coupon_codes = order_discount_infos[0].get('couponCodes', [])
-                if coupon_codes:  # Verifica se a lista de códigos de cupom não está vazia
+                if coupon_codes: 
                     return coupon_codes[0]
         return None
 
     def get_seller_coupon_code(self):
-        # Iterar sobre os itens de commerceItems e retornar o primeiro código de cupom encontrado em itemDiscountInfos
         commerce_items = self.occ_payload.get('order', {}).get('commerceItems', [])
         for item in commerce_items:
             price_info = item.get('priceInfo', {})
             item_discount_infos = price_info.get('itemDiscountInfos', [])
-            if item_discount_infos:  # Verifica se a lista não está vazia
+            if item_discount_infos:
                 coupon_codes = item_discount_infos[0].get('couponCodes', [])
-                if coupon_codes:  # Verifica se a lista de códigos de cupom não está vazia
+                if coupon_codes: 
                     return coupon_codes[0]
         return None
 
     def get_parcelas(self):
-        # Obtém o valor de cardInstallments e verifica se ele não está na lista de valores
         card_installments = self.occ_payload.get('order', {}).get('cardInstallments', '')
         if not card_installments or card_installments not in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']:
             return '1'
         return card_installments
     def get_site(self):
-        # Obtém o valor de siteName e transforma para maiúsculas
         site_name = self.occ_payload.get('site', {}).get('siteName', '')
         return site_name.upper()
 
     def get_valor_desconto(self):
-        # Obtém o valor de discountAmount e substitui pontos por vírgulas
         discount_amount = self.occ_payload.get('order', {}).get('priceInfo', {}).get('discountAmount', '')
         if isinstance(discount_amount, str):
             return discount_amount.replace('.', ',')
         return discount_amount
 
     def get_valor_frete(self):
-        # Obtém o valor de shipping e substitui pontos por vírgulas
         shipping = self.occ_payload.get('order', {}).get('priceInfo', {}).get('shipping', '')
         if isinstance(shipping, str):
             return shipping.replace('.', ',')
         return shipping
 
     def get_valor_pago(self):
-        # Obtém o valor de total e substitui pontos por vírgulas
         total = self.occ_payload.get('order', {}).get('priceInfo', {}).get('total', '')
         if isinstance(total, str):
             return total.replace('.', ',')
         return total
     def get_total_items(self):
-        # Obtém o valor de totalCommerceItemCount e retorna como string
         total_items = self.occ_payload.get('order', {}).get('totalCommerceItemCount', '')
         return total_items
     def get_valor_total(self):
-        # Retorna o valor total da ordem
         return float(self.occ_payload.get('order', {}).get('priceInfo', {}).get('total', 0))
     def get_raw_subtotal(self):
-        # Obtém o valor de rawSubtotal e substitui pontos por vírgulas
         raw_subtotal = self.occ_payload.get('order', {}).get('priceInfo', {}).get('rawSubtotal', '')
         if isinstance(raw_subtotal, str):
             return raw_subtotal.replace('.', ',')

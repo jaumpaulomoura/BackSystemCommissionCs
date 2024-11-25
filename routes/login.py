@@ -50,7 +50,6 @@ def forgot_password():
         server.starttls()
         server.login(Config.SMTP_USERNAME, Config.SMTP_PASSWORD)
         
-        # Send the email
         server.sendmail(from_email, to_email, msg.as_string())
         print('Email enviado com sucesso!')
         
@@ -108,7 +107,6 @@ def forgot_password():
 @login_bp.route('/login', methods=['POST'])
 def login():
     from main import jwt
-      # Importa localmente dentro da função
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
@@ -152,16 +150,13 @@ def reset_password():
     data = request.get_json()
     new_password = data.get('new_password')
 
-    # Verifica se a nova senha foi fornecida
     if not new_password:
         return jsonify({'message': 'Nova senha é necessária'}), 400
 
-    # Procura o usuário pelo e-mail
     user = Colaborador.query.filter_by(email=current_user_email).first()
     if not user:
         return jsonify({'message': 'Usuário não encontrado'}), 404
 
-    # Atualiza a senha do usuário
     user.password = generate_password_hash(new_password)
     db.session.commit()
 

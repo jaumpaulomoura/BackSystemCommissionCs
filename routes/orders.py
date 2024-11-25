@@ -13,19 +13,17 @@ orders_bp = Blueprint('orders_bp', __name__)
 def parse_currency(value):
     if value is None or value.strip() == '':
         return 0.0
-    # Remove currency symbols, commas and spaces, then convert to float
     value = value.replace('R$', '').replace('.', '').replace(',', '.').strip()
     return float(value) if value else 0.0
 
 def filter_orders(query, start_date_str, end_date_str, cupom_vendedora, time_colaborador):
-    # Date filtering
     if start_date_str:
         try:
             start_date_local = datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=pytz.timezone('America/Sao_Paulo'))
             start_date_utc = start_date_local.astimezone(pytz.utc)
             query = query.filter(VwcsEcomPedidosJp.data_submissao >= start_date_utc)
         except ValueError as e:
-            return query, jsonify({'error': f'Formato de startDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+            return query, jsonify({'error': f'Formato de startDate invÃ¡lido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
     if end_date_str:
         try:
@@ -33,9 +31,8 @@ def filter_orders(query, start_date_str, end_date_str, cupom_vendedora, time_col
             end_date_utc = end_date_local.astimezone(pytz.utc)
             query = query.filter(VwcsEcomPedidosJp.data_submissao <= end_date_utc)
         except ValueError as e:
-            return query, jsonify({'error': f'Formato de endDate inválido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
+            return query, jsonify({'error': f'Formato de endDate invÃ¡lido. Use YYYY-MM-DD. Detalhes: {e}'}), 400
 
-    # Filter by cupom_vendedora or time_colaborador
     if cupom_vendedora:
         query = query.filter(VwcsEcomPedidosJp.cupom_vendedora.ilike(f'%{cupom_vendedora}%'))
     elif time_colaborador:
@@ -44,19 +41,19 @@ def filter_orders(query, start_date_str, end_date_str, cupom_vendedora, time_col
         if cupoms:
             query = query.filter(VwcsEcomPedidosJp.cupom_vendedora.in_(cupoms))
         else:
-            return query, jsonify([]), 200  # Return empty if no collaborators found
+            return query, jsonify([]), 200 
 
-    return query, None, None  # No error
+    return query, None, None 
 
 @orders_bp.route('/orders', methods=['GET'], strict_slashes=False)
-# @jwt_required()  # Uncomment if using JWT
+# @jwt_required() 
 def get_orders():
     start_date_str = request.args.get('startDate')
     end_date_str = request.args.get('endDate')
     cupom_vendedora = request.args.get('cupomvendedora')
     time_colaborador = request.args.get('time')
     local_tz = pytz.timezone('America/Sao_Paulo')
-    # Approved Orders
+    
     subquery_aproved = db.session.query(VwcsEcomPedidosJp.pedido).join(
         Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
     ).filter(
@@ -86,7 +83,7 @@ def get_orders():
     if error_response:
         return error_response, status_code
 
-    # Non-Approved Orders
+    
     subquery_reaproved = db.session.query(VwcsEcomPedidosJp.pedido).join(
         Ticket, VwcsEcomPedidosJp.pedido == Ticket.orderId
     ).filter(
@@ -118,7 +115,7 @@ def get_orders():
     if error_response:
         return error_response, status_code
 
-    # Combine queries
+ 
     union_query = approved_orders_query.union_all(non_approved_orders_query)
 
     try:
@@ -126,7 +123,6 @@ def get_orders():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    # Build the response
     results = []
     for order in orders:
         order_dict = {
@@ -155,7 +151,6 @@ def get_orders():
             'dtdemissao': order.dtdemissao
         }
 
-        # Calcula o valor comissional
         valor_pago = parse_currency(order_dict.get('valor_pago', ''))
         valor_frete = parse_currency(order_dict.get('valor_frete', ''))
         order_dict['valor_comissional'] = valor_pago - valor_frete
@@ -163,7 +158,3 @@ def get_orders():
         results.append(order_dict)
 
     return jsonify(results) if results else jsonify([])
-
-
-
-

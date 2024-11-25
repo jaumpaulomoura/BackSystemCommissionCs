@@ -1,6 +1,5 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-import cx_Oracle
 import psycopg2
 from sqlalchemy import create_engine
 import logging
@@ -19,6 +18,7 @@ postgres_user = "u13cacln8vgrti"
 postgres_password = "pfeaadb47e0c224fa7efd121fc2aaef7dcb7425a36602d69b6bef5b247b747953"
 postgres_host = "ec2-3-219-15-106.compute-1.amazonaws.com"
 postgres_db = "dbhmk42rm7663c"
+
 # Configuração do log
 logging.basicConfig()
 logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)

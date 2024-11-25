@@ -6,8 +6,6 @@ class VwcsEcomPedidosJp(db.Model):
     __tablename__ = 'VWCS_ECOM_PEDIDOS_SISTEMA'
 
     pedido = db.Column(db.String, primary_key=True)
-    # mes= db.Column(db.Text)
-    # ano= db.Column(db.Text)
     data_submissao = db.Column(db.Date)
     hora_submissao = db.Column(db.Time)
     status = db.Column(db.String)
@@ -27,8 +25,6 @@ class VwcsEcomPedidosJp(db.Model):
 
     def __init__(self, pedido, data_submissao, hora_submissao, status, total_itens, envio, idloja, site, valor_bruto, valor_desconto, valor_frete, valor_pago, cupom, cupom_vendedora, metodo_pagamento, parcelas, id_cliente):
         self.pedido = pedido
-        # self.mes=mes
-        # self.ano=ano
         self.data_submissao = data_submissao
         self.hora_submissao = hora_submissao
         self.status = status
@@ -49,8 +45,6 @@ class VwcsEcomPedidosJp(db.Model):
     def to_dict(self):
         return {
             'pedido': self.pedido,
-            # 'mes': self.mes,
-            # 'ano': self.ano,
             'data_submissao': self.data_submissao.isoformat() if self.data_submissao else None,
             'hora_submissao': self.hora_submissao.isoformat() if self.hora_submissao else None,
             'status': self.status,

@@ -12,12 +12,11 @@ class Meta(db.Model):
     valor = db.Column(db.Float, nullable=False)
     mes_ano = db.Column(db.String(50), primary_key=True)
 
-    # Specify the foreign keys explicitly to resolve the ambiguity
     colaborador = relationship(
         'Colaborador',
         backref='metas',
         lazy=True,
-        foreign_keys=[cupom]  # Specify only the appropriate foreign key for the relationship
+        foreign_keys=[cupom]  
     )
 
     def __init__(self, cupom, nome, meta, porcentagem, valor, mes_ano):

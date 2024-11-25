@@ -4,7 +4,6 @@ class Colaborador(db.Model):
     
     cupom = db.Column(db.String(50), primary_key=True)
     nome = db.Column(db.String(100), primary_key=True)
-    # sobrenome = db.Column(db.String(100), nullable=True)
     funcao = db.Column(db.String(100), nullable=False)
     time = db.Column(db.String(50), nullable=True)
     email = db.Column(db.String(120), primary_key=True)  
@@ -16,7 +15,6 @@ class Colaborador(db.Model):
     def __init__(self, cupom, nome,  funcao, time, email, password,dtadmissao,dtdemissao):
         self.cupom = cupom
         self.nome = nome
-        # self.sobrenome = sobrenome
         self.funcao = funcao
         self.time = time
         self.email = email
@@ -29,7 +27,6 @@ class Colaborador(db.Model):
             'id': f"{self.cupom}_{self.nome}_{self.time}",
             'cupom': self.cupom,
             'nome': self.nome,
-            # 'sobrenome': self.sobrenome,
             'funcao': self.funcao,
             'time': self.time,
             'email': self.email,

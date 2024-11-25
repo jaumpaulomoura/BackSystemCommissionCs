@@ -2,7 +2,6 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.dialects import postgresql
 import pytz
 from sqlalchemy import func, and_
-# from models import Colaborador, SubmittedOrder, Ticket, db, VwcsEcomPedidosJp
 from flask_jwt_extended import jwt_required
 from models.colaborador import Colaborador
 
@@ -55,16 +54,14 @@ def get_previous_month_range(date):
 def adjust_for_timezone(date_input):
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
 
-    # Verifica se a entrada é uma string e a converte para datetime
     if isinstance(date_input, str):
         date_time_utc = datetime.strptime(date_input, '%Y-%m-%d %H:%M:%S')
-        date_time_utc = date_time_utc.replace(tzinfo=pytz.utc)  # Define como UTC
+        date_time_utc = date_time_utc.replace(tzinfo=pytz.utc)
     elif isinstance(date_input, datetime):
         date_time_utc = date_input
     else:
         return None
 
-    # Ajusta para o fuso horário de São Paulo
     date_time_sao_paulo = date_time_utc.astimezone(sao_paulo_tz)
     return date_time_sao_paulo
 
@@ -74,7 +71,6 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
     formatted_start_date = format_date_for_query(parse_date(start_date)) if start_date else None
     formatted_end_date = format_date_for_query(parse_date(end_date)) if end_date else None
     colaborador_alias = aliased(Colaborador)
-    # Convert start and end dates to UTC
     if formatted_start_date:
         start_date_local = datetime.strptime(start_date, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
         formatted_start_date = start_date_local.astimezone(pytz.utc).strftime('%Y-%m-%d')
@@ -179,13 +175,6 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         .group_by(VwcsEcomPedidosJp.id_cliente)
     )
 
-    # Executar a subconsulta e imprimir os resultados
-    # approved_results = subquery_aproved.all()
-    # print("Resultados da subconsulta aprovada:")
-    # for result in approved_results:
-    #     print(f"ID Cliente: {result.id_cliente}, Último Pedido: {result.last_order}")
-
-    # Subconsulta para pedidos não aprovados
     subquery_reaproved = (
         db.session.query(
             VwcsEcomPedidosJp.id_cliente.label('id_cliente'),
@@ -203,25 +192,13 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         .group_by(VwcsEcomPedidosJp.id_cliente)
     )
 
-# Executar a subconsulta e imprimir os resultados
-    # reapproved_results = subquery_reaproved.all()
-    # print("Resultados da subconsulta não aprovada:")
-    # for result in reapproved_results:
-    #     print(f"ID Cliente: {result.id_cliente}, Último Pedido: {result.last_order}")
 
-    #     # União das duas subconsultas
     subquery = subquery_aproved.union_all(subquery_reaproved).subquery()
 
-    # A consulta final pode incluir o join com outras tabelas ou agregações
     results = db.session.query(subquery).all()
 
    
-    # print("Consulta SQL Gerada para subquery:")
-    # print(str(subquery.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})))
-    # print("Resultado da subquery:")
-    # for row in db.session.query(subquery).all():
-    #     print(row)
-    
+
     today = datetime.now()
     first_day_current_month, last_day_current_month = get_current_month_range(today)
     orders_query = (
@@ -236,39 +213,24 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         .group_by(
             min_data_query.c.cupom_vendedora,
             min_data_query.c.id_cliente,
-            min_data_query.c.min_data,  # Certifique-se de incluir todos os campos que não são agregados
-            min_data_query.c.nome  # Adicionando 'nome' ao GROUP BY
+            min_data_query.c.min_data, 
+            min_data_query.c.nome
         )
     )
 
-    # Executar a consulta e imprimir os resultados
-    # results = orders_query.all()
-    # for result in results:
-    #     print(result)
 
 
-    orders_results = orders_query.all()
-    # print("Resultado da orders_query:")
-    # for result in orders_results:
-    #     print(result)       
+    orders_results = orders_query.all()      
     combined_results = []
     for client_data in orders_results:
         min_data = client_data.min_data
-        last_orders = client_data.last_order
-        # print("Resultado da orders_query:")
-        # for result in orders_results:
-        #     print(result)       
+        last_orders = client_data.last_order  
         days_difference = None
         days_mes_anterior = None
     
-        # print("minima data:",min_data_query)
         if min_data and last_orders:
             min_date = parse_date(format_date_for_query(adjust_for_timezone(min_data)))
-            last_order_date = parse_date(format_date_for_query((adjust_for_timezone((last_orders)))))
-            # print('min_date')
-            # print(min_date)
-            # print('last_order_date')
-            # print(last_order_date)
+            last_order_date = parse_date(format_date_for_query((adjust_for_timezone((last_orders)))))     
             if min_date and last_order_date:
                 days_difference = (min_date -last_order_date).days
                
@@ -276,17 +238,15 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
         current_date = parse_date(format_date_for_query(adjust_for_timezone(min_data))) or datetime.now()
         first_day_prev_month, last_day_prev_month = get_previous_month_range(current_date)
         min_data_prev_month = None
-        # print(first_day_current_month,last_day_prev_month)
         min_data_prev_month_aproved = (
             db.session.query(func.min(VwcsEcomPedidosJp.data_submissao))
-            # .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
             .filter(
                 VwcsEcomPedidosJp.id_cliente == client_data.id_cliente,
                 VwcsEcomPedidosJp.data_submissao >= first_day_prev_month,
                 VwcsEcomPedidosJp.data_submissao <= last_day_prev_month,
                 VwcsEcomPedidosJp.cupom_vendedora == client_data.cupom_vendedora,
                 VwcsEcomPedidosJp.status == 'APROVADO',
-                ~VwcsEcomPedidosJp.pedido.in_(subquery_exclude_tickets_cancelled)  # Correção: operador ~ para negação
+                ~VwcsEcomPedidosJp.pedido.in_(subquery_exclude_tickets_cancelled)  
             )
             .group_by(VwcsEcomPedidosJp.id_cliente)
             .scalar()
@@ -294,20 +254,18 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
 
         min_data_prev_month_reaproved = (
             db.session.query(func.min(VwcsEcomPedidosJp.data_submissao))
-            # .join(colaborador_alias, colaborador_alias.cupom == VwcsEcomPedidosJp.cupom_vendedora)
             .filter(
                 VwcsEcomPedidosJp.id_cliente == client_data.id_cliente,
                 VwcsEcomPedidosJp.data_submissao >= first_day_prev_month,
                 VwcsEcomPedidosJp.data_submissao <= last_day_prev_month,
                 VwcsEcomPedidosJp.cupom_vendedora == client_data.cupom_vendedora,
                 VwcsEcomPedidosJp.status != 'APROVADO',
-                VwcsEcomPedidosJp.pedido.in_(subquery_include_tickets_approved)  # Correção: condição de inclusão
+                VwcsEcomPedidosJp.pedido.in_(subquery_include_tickets_approved) 
             )
             .group_by(VwcsEcomPedidosJp.id_cliente)
             .scalar()
         )
 
-        # União das duas consultas
         
         min_data_prev_month = min(
     filter(None, [min_data_prev_month_aproved, min_data_prev_month_reaproved]), 
@@ -348,17 +306,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
     default=None
 )
             
-            
-            # if last_order_prev_month_aproved is not None and last_order_prev_month_reaproved is not None:
-            #     last_order_prev_month = max(last_order_prev_month_aproved, last_order_prev_month_reaproved)
-            # elif last_order_prev_month_aproved is not None:
-            #     last_order_prev_month = last_order_prev_month_aproved
-            # elif last_order_prev_month_reaproved is not None:
-            #     last_order_prev_month = last_order_prev_month_reaproved
-            # else:
-            #     last_order_prev_month = None
-        # print("Resultado da last_order_prev_month:")
-        # print("Resultado da last_order_prev_month:", last_order_prev_month)
+
         if min_data_prev_month and last_order_prev_month:
             min_data_prev_month_date = parse_date(format_date_for_query(min_data_prev_month))
             last_order_prev_month_date = parse_date(format_date_for_query(last_order_prev_month))
@@ -402,8 +350,7 @@ def get_all_orders(start_date=None, end_date=None, cupom_vendedora=None, time_co
             'Status': status,
             'nome': client_data.nome
         })
-        # print("Resultado da combined_results:")
-        # print(combined_results)
+
 
     return combined_results
 
@@ -445,11 +392,8 @@ def get_summary_summarys():
     end_date = request.args.get('endDate')
     cupom_vendedora = request.args.get('cupomvendedora')
     time_colaborador = request.args.get('time')
-
-    # Implementação da função para obter todos os pedidos com base nos parâmetros
     all_orders = get_all_orders(start_date, end_date, cupom_vendedora, time_colaborador)
     
-    # Organizar os pedidos por `cupom_vendedora`
     orders_by_cupom = {}
     for order in all_orders:
         cupom_vendedora = order['cupom_vendedora']
@@ -457,7 +401,6 @@ def get_summary_summarys():
             orders_by_cupom[cupom_vendedora] = []
         orders_by_cupom[cupom_vendedora].append(order)
     
-    # Calcular as contagens para cada cupom
     response = calculate_counts_by_cupom(orders_by_cupom)
 
     return jsonify(response)
